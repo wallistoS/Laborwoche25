@@ -55,14 +55,14 @@ let glitchRotation = 0;
 
 // Psychose-Effekt (3 Köpfe)
 let isPsychosis = false;
-let psychosisDuration = 0;
+let psychosisKickStart = 0;  // Bei welchem Kick die Psychose gestartet wurde
 let leftHeadGlitchX = 0;
 let leftHeadGlitchY = 0;
 let rightHeadGlitchX = 0;
 let rightHeadGlitchY = 0;
 
 function preload() {
-  sound = loadSound("./assets/audio/test.mp3");
+  sound = loadSound("./assets/audio/LanaTechno.mp3");
 }
 
 function setup() {
@@ -117,6 +117,9 @@ function draw() {
       kickCounter++;
       lastKickCounted = true;
       
+      // Prüfe Psychose-Status basierend auf Kick-Zyklus
+      checkPsychosisState();
+      
       // Nach jedem 9. Kick (also beim 10., 20., 30., etc.): Flackern auslösen
       if (kickCounter % 10 === 0) {
         triggerFlicker();
@@ -127,12 +130,6 @@ function draw() {
       if (kickCounter % 20 === 0) {
         triggerGlitch();
         console.log("Glitch bei Kick:", kickCounter); // Debug
-      }
-      
-      // Nach jedem 29. Kick (also beim 30., 60., 90., etc.): Psychose auslösen
-      if (kickCounter % 30 === 0) {
-        triggerPsychosis();
-        console.log("PSYCHOSE bei Kick:", kickCounter); // Debug
       }
     }
     
@@ -868,25 +865,39 @@ function updateGlitch() {
 /************************************/
 /* Psychose-Effekt (3 Köpfe)        */
 /************************************/
+function checkPsychosisState() {
+  // Berechne Position im 30-Kick-Zyklus (10 Kicks Pause + 20 Kicks Anzeige)
+  let cyclePosition = kickCounter % 30;
+  
+  // Kicks 1-10: Psychose aus
+  // Kicks 11-30: Psychose an
+  if (cyclePosition >= 10 || cyclePosition === 0) {
+    if (!isPsychosis) {
+      isPsychosis = true;
+      psychosisKickStart = kickCounter;
+      console.log("PSYCHOSE START bei Kick:", kickCounter);
+    }
+  } else {
+    if (isPsychosis) {
+      isPsychosis = false;
+      console.log("PSYCHOSE ENDE bei Kick:", kickCounter);
+    }
+  }
+}
+
 function triggerPsychosis() {
+  // Diese Funktion wird nicht mehr benötigt, aber wir behalten sie für Kompatibilität
   isPsychosis = true;
-  psychosisDuration = 30; // 30 Frames (1 Sekunde bei 30fps)
+  psychosisKickStart = kickCounter;
 }
 
 function updatePsychosis() {
   if (isPsychosis) {
-    // Glitch-Offsets für beide Köpfe (unabhängig voneinander)
-    leftHeadGlitchX = random(-30, 30);
-    leftHeadGlitchY = random(-20, 20);
-    rightHeadGlitchX = random(-30, 30);
-    rightHeadGlitchY = random(-20, 20);
-    
-    psychosisDuration--;
-    
-    // Beende Psychose
-    if (psychosisDuration <= 0) {
-      isPsychosis = false;
-    }
+    // Glitch-Offsets für beide Köpfe (unabhängig voneinander) - reduziert
+    leftHeadGlitchX = random(-8, 8);
+    leftHeadGlitchY = random(-5, 5);
+    rightHeadGlitchX = random(-8, 8);
+    rightHeadGlitchY = random(-5, 5);
   } else {
     leftHeadGlitchX = 0;
     leftHeadGlitchY = 0;
