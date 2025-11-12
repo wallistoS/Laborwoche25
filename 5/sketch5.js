@@ -9,10 +9,10 @@ let words = ["FLOATING", "DREAM", "FALLING", "NIGHTMARE"];
 let textToDisplay = words[0];
 let bars = [];
 let lastWordChange = 0;
-let wordChangeDuration = 2000; // 2 Sekunden Minimum bevor Wechsel möglich
+let wordChangeDuration = 0; // Kein Minimum - Echtzeit-Wechsel
 let transitionProgress = 0;
 let isTransitioning = false;
-let transitionDuration = 1500; // 1.5 Sekunden Übergang
+let transitionDuration = 300; // 0.3 Sekunden schneller Übergang
 
 // Audio-Analyse für automatischen Zustandswechsel
 let energyHistory = [];
@@ -445,13 +445,13 @@ function drawDreamBars(lowFreq, isBeat, transitionEase) {
 function drawFallingBars(lowFreq, isBeat, transitionEase) {
   // FALLING: Wellen-Effekt als würde man fallen + Vibration - reagiert auf Beat
   
-  waveOffset += 0.15 + lowFreq * 0.25; // Geschwindigkeit reagiert auf Bass
-  let waveIntensity = 25 + lowFreq * 35; // Intensität reagiert auf Bass
+  waveOffset += 0.1 + lowFreq * 0.15; // Langsamer - reduziert
+  let waveIntensity = 12 + lowFreq * 18; // Weniger intensiv - halbiert
   let waveFrequency = 0.008; // Wellenfrequenz über X-Achse
   
-  // Vibrations-Offset wie bei DREAM
-  vibrateOffset += 0.25 + lowFreq * 0.3;
-  let vibrateIntensity = lowFreq * 12; // Vibration basierend auf Bass
+  // Vibrations-Offset wie bei DREAM - aber reduziert
+  vibrateOffset += 0.2 + lowFreq * 0.2;
+  let vibrateIntensity = lowFreq * 6; // Vibration reduziert
   
   for (let i = 0; i < bars.length; i++) {
     let bar = bars[i];
@@ -474,26 +474,26 @@ function drawFallingBars(lowFreq, isBeat, transitionEase) {
       for (let segment of bar.textSegments) {
         push();
         
-        // Pulsieren bei Bass - stärker als vorher
-        let pulseScale = 1 + lowFreq * 1.0;
-        if (isBeat) pulseScale *= 1.3; // Extra bei Beat
+        // Pulsieren bei Bass - moderat
+        let pulseScale = 1 + lowFreq * 0.6;
+        if (isBeat) pulseScale *= 1.15; // Weniger extra bei Beat
         let textBarWidth = barWidth * textBarWidthMultiplier * pulseScale;
         
-        // Wellen-Effekt: Vertikale Bewegung basierend auf X-Position
+        // Wellen-Effekt: Vertikale Bewegung basierend auf X-Position - reduziert
         let waveY = sin(waveOffset + bar.x * waveFrequency) * waveIntensity;
         // Zusätzliche Welle mit anderer Frequenz für komplexeren Effekt
-        waveY += cos(waveOffset * 1.3 + bar.x * waveFrequency * 0.7) * (waveIntensity * 0.6);
+        waveY += cos(waveOffset * 1.3 + bar.x * waveFrequency * 0.7) * (waveIntensity * 0.4);
         
-        // VIBRATION - Horizontale und vertikale Offsets
+        // VIBRATION - Horizontale und vertikale Offsets - reduziert
         let vibrateX = sin(vibrateOffset + bar.phase) * vibrateIntensity;
-        let vibrateY = cos(vibrateOffset * 1.4 + bar.phase) * vibrateIntensity * 0.4;
+        let vibrateY = cos(vibrateOffset * 1.4 + bar.phase) * vibrateIntensity * 0.3;
         
         // Kombiniere Wellen und Vibration
         let x = bar.x + vibrateX;
         let segmentCenter = (segment.yStart + segment.yEnd) / 2;
         
-        // Höhe pulsiert mit Bass
-        let heightScale = 1 + lowFreq * 0.4;
+        // Höhe pulsiert mit Bass - moderat
+        let heightScale = 1 + lowFreq * 0.2;
         let textBarHeight = segment.height * heightScale;
         let y = segmentCenter - textBarHeight/2 + waveY + vibrateY;
         
@@ -510,9 +510,9 @@ function drawFallingBars(lowFreq, isBeat, transitionEase) {
         
         // Glow bei Bass und stärkeren Wellen
         if (!isTransitioning && (isBeat || abs(waveY) > waveIntensity * 0.5)) {
-          let glowAlpha = 80 + lowFreq * 100;
+          let glowAlpha = 60 + lowFreq * 60; // Reduziert
           fill(255, 255, 255, glowAlpha);
-          rect(x - textBarWidth/2 - 4, y - 4, textBarWidth + 8, textBarHeight + 8);
+          rect(x - textBarWidth/2 - 3, y - 3, textBarWidth + 6, textBarHeight + 6);
         }
         
         pop();
@@ -520,31 +520,31 @@ function drawFallingBars(lowFreq, isBeat, transitionEase) {
     }
   }
   
-  // Wellen-Linien im Hintergrund - reagieren auf Bass
+  // Wellen-Linien im Hintergrund - reagieren auf Bass - reduziert
   push();
   noFill();
-  let strokeAlpha = 100 + lowFreq * 100; // Sichtbarkeit reagiert auf Bass
+  let strokeAlpha = 60 + lowFreq * 60; // Weniger sichtbar
   stroke(100, 100, 100, strokeAlpha);
-  strokeWeight(1 + lowFreq * 2); // Dicke reagiert auf Bass
-  for (let waveNum = 0; waveNum < 3; waveNum++) {
+  strokeWeight(1 + lowFreq * 1); // Dünner
+  for (let waveNum = 0; waveNum < 2; waveNum++) { // Nur 2 statt 3 Wellen
     beginShape();
-    for (let x = 0; x < width; x += 10) {
-      let y = height/2 + sin(waveOffset * (1 + waveNum * 0.3) + x * waveFrequency) * (waveIntensity * 2);
+    for (let x = 0; x < width; x += 15) { // Gröbere Schritte
+      let y = height/2 + sin(waveOffset * (1 + waveNum * 0.3) + x * waveFrequency) * (waveIntensity * 1.5);
       vertex(x, y);
     }
     endShape();
   }
   pop();
   
-  // Extra Effekt bei Beat: Kurze horizontale Störlinien
-  if (isBeat && random(1) > 0.6) {
+  // Extra Effekt bei Beat: Kurze horizontale Störlinien - reduziert
+  if (isBeat && random(1) > 0.8) { // Seltener
     push();
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) { // Weniger Linien
       let y = random(height);
-      let w = random(100, 300);
+      let w = random(80, 200); // Kürzer
       let x = random(width);
-      stroke(255, 255, 255, 150);
-      strokeWeight(2);
+      stroke(255, 255, 255, 100); // Transparenter
+      strokeWeight(1);
       line(x, y, x + w, y);
     }
     pop();
@@ -552,32 +552,32 @@ function drawFallingBars(lowFreq, isBeat, transitionEase) {
 }
 
 function drawNightmareBars(lowFreq, isBeat, transitionEase) {
-  // NIGHTMARE: Horror-Glitch - SEHR reaktiv auf Beat
+  // NIGHTMARE: Horror-Glitch - auf Kicks abgestimmt, subtiler
   
-  // Glitch aktivieren bei Bass - häufiger und länger bei starkem Bass
-  if (isBeat && random(1) > 0.3) { // Erhöhte Wahrscheinlichkeit
+  // Glitch aktiviert sich NUR bei Kicks (Beats) - seltener
+  if (isBeat && random(1) > 0.5) { // Nur 50% der Kicks
     glitchActive = true;
     glitchFrames = frameCount;
   }
   
-  // Glitch dauert länger bei starkem Bass
-  let glitchDuration = 6 + lowFreq * 8; // 6-14 Frames je nach Bass
+  // Glitch dauert kürzer - besser lesbar
+  let glitchDuration = 3 + lowFreq * 4; // 3-7 Frames - kürzer
   if (glitchActive && frameCount - glitchFrames > glitchDuration) {
     glitchActive = false;
   }
   
-  // Bei Glitch: Zufällige Offsets für alle Balken - stärker bei hohem Bass
+  // Bei Glitch: Reduzierte Offsets - Text bleibt lesbarer
   if (glitchActive) {
-    let glitchStrength = 20 + lowFreq * 40; // Bis zu 60px Offset bei starkem Bass
+    let glitchStrength = 8 + lowFreq * 12; // Bis zu 20px statt 60px
     for (let bar of bars) {
       bar.glitchOffsetX = random(-glitchStrength, glitchStrength);
-      bar.glitchOffsetY = random(-glitchStrength/2, glitchStrength/2);
+      bar.glitchOffsetY = random(-glitchStrength/3, glitchStrength/3);
     }
   } else {
-    // Sanft zurück zu 0
+    // Schneller zurück zu 0 - glattere Übergänge
     for (let bar of bars) {
-      bar.glitchOffsetX = lerp(bar.glitchOffsetX, 0, 0.4);
-      bar.glitchOffsetY = lerp(bar.glitchOffsetY, 0, 0.4);
+      bar.glitchOffsetX = lerp(bar.glitchOffsetX, 0, 0.6);
+      bar.glitchOffsetY = lerp(bar.glitchOffsetY, 0, 0.6);
     }
   }
   
@@ -599,13 +599,13 @@ function drawNightmareBars(lowFreq, isBeat, transitionEase) {
     pop();
   }
   
-  // RGB-Split bei aktivem Glitch - ÜBER den dünnen Strichen
+  // RGB-Split bei aktivem Glitch - REDUZIERT
   if (glitchActive) {
-    // Zeichne Text-Balken mehrfach versetzt in Rot/Weiß/Grau - Offset reagiert auf Bass
-    let rgbSplitStrength = 8 + lowFreq * 12; // Stärkerer Split bei Bass
+    // Subtilerer RGB-Split
+    let rgbSplitStrength = 4 + lowFreq * 6; // Viel weniger Offset
     for (let layer = 0; layer < 3; layer++) {
       let layerOffsetX = (layer - 1) * rgbSplitStrength;
-      let layerOffsetY = (layer - 1) * (rgbSplitStrength * 0.4);
+      let layerOffsetY = (layer - 1) * (rgbSplitStrength * 0.3);
       
       for (let i = 0; i < bars.length; i++) {
         let bar = bars[i];
@@ -614,20 +614,20 @@ function drawNightmareBars(lowFreq, isBeat, transitionEase) {
           for (let segment of bar.textSegments) {
             push();
             
-            // Breite pulsiert mit Bass auch im Glitch
-            let pulseScale = 1 + lowFreq * 0.5;
+            // Weniger Pulsieren
+            let pulseScale = 1 + lowFreq * 0.3;
             let textBarWidth = barWidth * textBarWidthMultiplier * pulseScale;
             let x = bar.x + bar.glitchOffsetX + layerOffsetX;
             let y = segment.yStart + bar.glitchOffsetY + layerOffsetY;
             
-            // Farbe je nach Layer - Alpha reagiert auf Bass
-            let alphaBoost = lowFreq * 55;
+            // Subtilere Farben - weniger aggressiv
+            let alphaBoost = lowFreq * 30;
             if (layer === 0) {
-              fill(255, 0, 0, 200 + alphaBoost); // ROT - intensiver bei Bass
+              fill(255, 100, 100, 140 + alphaBoost); // Helles Rot - weniger intensiv
             } else if (layer === 1) {
-              fill(255, 255, 255, 180 + alphaBoost); // Weiß
+              fill(255, 255, 255, 160 + alphaBoost); // Weiß
             } else {
-              fill(150, 150, 150, 140 + alphaBoost); // Grau
+              fill(200, 200, 200, 120 + alphaBoost); // Hellgrau
             }
             noStroke();
             
@@ -649,17 +649,17 @@ function drawNightmareBars(lowFreq, isBeat, transitionEase) {
         for (let segment of bar.textSegments) {
           push();
           
-          // Pulsieren mit Bass
-          let pulseScale = 1 + lowFreq * 0.8;
-          if (isBeat) pulseScale *= 1.2;
+          // Moderates Pulsieren mit Bass
+          let pulseScale = 1 + lowFreq * 0.5;
+          if (isBeat) pulseScale *= 1.1; // Weniger dramatisch
           let textBarWidth = barWidth * textBarWidthMultiplier * pulseScale;
           let x = bar.x + bar.glitchOffsetX;
           let y = segment.yStart + bar.glitchOffsetY;
           
-          // Weiß, aber bei starkem Bass häufiger rötlich
-          if (lowFreq > 0.5 && random(1) > 0.7) {
-            let redIntensity = 50 + lowFreq * 100; // Mehr Rot bei mehr Bass
-            fill(255, redIntensity, redIntensity); // Leicht bis stark rötlich
+          // Weniger rötliche Färbung - besser lesbar
+          if (lowFreq > 0.7 && random(1) > 0.85) { // Seltener und nur bei sehr starkem Bass
+            let redIntensity = 30 + lowFreq * 50; // Weniger Rot
+            fill(255, 220 - redIntensity, 220 - redIntensity); // Leicht rötlich
           } else {
             fill(255, 255, 255); // Weiß
           }
@@ -679,19 +679,19 @@ function drawNightmareBars(lowFreq, isBeat, transitionEase) {
     }
   }
   
-  // Zusätzliche Glitch-Streifen über das ganze Bild - mehr bei starkem Bass
-  if (glitchActive) {
+  // Reduzierte Glitch-Streifen - subtiler
+  if (glitchActive && random(1) > 0.5) { // Nur 50% der Zeit
     push();
-    let numStripes = 8 + lowFreq * 12; // Mehr Streifen bei Bass
+    let numStripes = 3 + lowFreq * 5; // Weniger Streifen
     for (let i = 0; i < numStripes; i++) {
       let y = random(height);
-      let h = random(5, 40 + lowFreq * 40); // Höhere Streifen bei Bass
-      let offsetX = random(-30 - lowFreq * 50, 30 + lowFreq * 50);
+      let h = random(3, 15 + lowFreq * 15); // Kleinere Streifen
+      let offsetX = random(-20, 20);
       
-      if (random(1) > 0.6) {
-        fill(255, 0, 0, 100 + lowFreq * 100); // Rote Störung - intensiver bei Bass
+      if (random(1) > 0.7) {
+        fill(255, 100, 100, 40 + lowFreq * 40); // Transparenter
       } else {
-        fill(255, 255, 255, 80 + lowFreq * 80); // Weiße Störung
+        fill(255, 255, 255, 30 + lowFreq * 30); // Sehr transparent
       }
       noStroke();
       rect(offsetX, y, width, h);
@@ -699,26 +699,19 @@ function drawNightmareBars(lowFreq, isBeat, transitionEase) {
     pop();
   }
   
-  // Scanlines - stärker bei hohem Bass
-  if (lowFreq > 0.3) {
+  // Subtilere Scanlines - nur bei sehr starkem Bass
+  if (lowFreq > 0.5) {
     push();
-    stroke(255, 0, 0, lowFreq * 120); // Intensivere Scanlines
-    strokeWeight(isBeat ? 2 : 1); // Dicker bei Beat
-    let lineSpacing = isBeat ? 2 : 3; // Dichter bei Beat
+    stroke(255, 100, 100, lowFreq * 40); // Viel transparenter
+    strokeWeight(1);
+    let lineSpacing = 4; // Weniger dicht
     for (let y = 0; y < height; y += lineSpacing) {
       line(0, y, width, y);
     }
     pop();
   }
   
-  // Extra Effekt bei Beat: Screen Shake Simulation
-  if (isBeat && lowFreq > 0.7) {
-    push();
-    // Dunkle Flash-Overlays
-    fill(0, 0, 0, 30);
-    rect(0, 0, width, height);
-    pop();
-  }
+  // Kein Screen Shake mehr - war zu intensiv
 }
 
 function easeInOutCubic(t) {
