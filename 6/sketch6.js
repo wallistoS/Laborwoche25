@@ -233,7 +233,7 @@ function draw() {
   if (isStarted && crashScheduled && millis() >= nextCrashTime) {
     isCrashing = true;
     // Crashdauer: 1 Sekunde
-    let durMs = 500;
+    let durMs = 750;
     crashEndTime = millis() + durMs;
     // plane nächsten Crash
     nextCrashTime = millis() + crashIntervalMs;

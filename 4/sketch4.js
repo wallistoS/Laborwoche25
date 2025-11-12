@@ -121,7 +121,7 @@ let hi_freq = 0;
 let treble_freq = 0;
 
 function preload() {
-  sound = loadSound("./assets/Gonzi_Basskiller.mp3");
+  sound = loadSound("./assets/LanaTechno.mp3");
   dinoLeftImg = loadImage("./assets/Chrome_T-Rex_Left_Run.webp");
   dinoRightImg = loadImage("./assets/Chrome_T-Rex_Right_Run.webp");
   cactusImg = loadImage("./assets/1_Cactus_Chrome_Dino.webp");
