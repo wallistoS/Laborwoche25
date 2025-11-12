@@ -19,12 +19,12 @@ let energyHistory = [];
 let historyLength = 60; // 1 Sekunde bei 60fps
 
 // Intensitäts-Schwellwerte für verschiedene Zustände
-// 0: FLOATING (20-30%), 1: DREAM (30-45%), 2: FALLING (45-60%), 3: NIGHTMARE (60%+)
+// 0: FLOATING (10-35%), 1: DREAM (35-55%), 2: FALLING (55-75%), 3: NIGHTMARE (70%+)
 let intensityRanges = [
-  { min: 0.20, max: 0.30, word: 0 },  // FLOATING
-  { min: 0.30, max: 0.45, word: 1 },  // DREAM
-  { min: 0.45, max: 0.60, word: 2 },  // FALLING
-  { min: 0.60, max: 1.00, word: 3 }   // NIGHTMARE
+  { min: 0.10, max: 0.35, word: 0 },  // FLOATING
+  { min: 0.35, max: 0.60, word: 1 },  // DREAM
+  { min: 0.60, max: 0.80, word: 2 },  // FALLING
+  { min: 0.80, max: 1.00, word: 3 }   // NIGHTMARE
 ];
 
 // Raster
@@ -46,6 +46,8 @@ function preload() {
   sounds.push(loadSound("./assets/LanaTechno.mp3"));
   sounds.push(loadSound("./assets/test.mp3"));
   sounds.push(loadSound("./assets/test2.mp3"));
+  sounds.push(loadSound("./assets/Gonzi_BASSKILLER.mp3"));
+  sounds.push(loadSound("./assets/katyperry.mp3"));
 }
 
 function setup() {
@@ -75,7 +77,7 @@ function playRandomSound() {
     sounds[i].onended(() => {});
   }
   
-  // Wähle zufälligen Song (0-2)
+  // Wähle zufälligen Song (0-4)
   currentSoundIndex = floor(random(sounds.length));
   
   // Hole aktuellen Sound
