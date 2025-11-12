@@ -61,8 +61,24 @@ let leftHeadGlitchY = 0;
 let rightHeadGlitchX = 0;
 let rightHeadGlitchY = 0;
 
+// Separate Daten für linken Psychose-Kopf
+let leftHeadVertices = [];
+let leftHeadTriangles = [];
+let leftColoredTriangles = [];
+let leftCurrentSegments = 5;
+let leftCurrentRings = 6;
+let leftRotationY = 0;
+
+// Separate Daten für rechten Psychose-Kopf
+let rightHeadVertices = [];
+let rightHeadTriangles = [];
+let rightColoredTriangles = [];
+let rightCurrentSegments = 5;
+let rightCurrentRings = 6;
+let rightRotationY = 0;
+
 function preload() {
-  sound = loadSound("./assets/audio/LanaTechno.mp3");
+  sound = loadSound("./assets/audio/katyperry.mp3");
 }
 
 function setup() {
@@ -80,6 +96,9 @@ function setup() {
 
   // Erstelle den polygonalen Kopf
   createHead();
+  
+  // Erstelle die Psychose-Köpfe
+  createPsychosisHeads();
   
   // Erstelle das Gitternetz für den Hintergrund
   createGrid();
@@ -133,14 +152,28 @@ function draw() {
       }
     }
     
-    // Verändere Segments und Rings zufällig
-    currentSegments = int(random(3, 12));  // Zwischen 4 und 7
-    currentRings = int(random(3, 16));     // Zwischen 5 und 8
+    // Verändere Segments und Rings zufällig für Hauptkopf
+    currentSegments = int(random(3, 12));
+    currentRings = int(random(3, 16));
     
-    // Erstelle Kopf neu mit neuen Werten
+    // Erstelle Hauptkopf neu mit neuen Werten
     createHead();
     
-    // Füge 30-50 zufällige Dreiecke hinzu (mehr als vorher: 15-25)
+    // PSYCHOSE-KÖPFE: Verändere unabhängig bei jedem Beat
+    if (isPsychosis) {
+      // Linker Kopf: völlig zufällige Werte
+      leftCurrentSegments = int(random(3, 12));
+      leftCurrentRings = int(random(3, 16));
+      
+      // Rechter Kopf: völlig andere zufällige Werte
+      rightCurrentSegments = int(random(3, 12));
+      rightCurrentRings = int(random(3, 16));
+      
+      // Erstelle beide Psychose-Köpfe neu
+      createPsychosisHeads();
+    }
+    
+    // Füge 30-50 zufällige Dreiecke zum Hauptkopf hinzu
     let numToAdd = int(random(30, 50));
     for (let i = 0; i < numToAdd; i++) {
       let randomTri = int(random(headTriangles.length));
@@ -151,15 +184,50 @@ function draw() {
         life: 1.0
       });
     }
+    
+    // Füge zufällige Dreiecke zu den Psychose-Köpfen hinzu (wenn aktiv)
+    if (isPsychosis) {
+      // Linker Kopf
+      leftColoredTriangles = [];
+      let numToAddLeft = int(random(30, 50));
+      for (let i = 0; i < numToAddLeft; i++) {
+        let randomTri = int(random(leftHeadTriangles.length));
+        let randomColor = getRandomColorForBeat();
+        leftColoredTriangles.push({
+          index: randomTri,
+          color: randomColor,
+          life: 1.0
+        });
+      }
+      
+      // Rechter Kopf
+      rightColoredTriangles = [];
+      let numToAddRight = int(random(30, 50));
+      for (let i = 0; i < numToAddRight; i++) {
+        let randomTri = int(random(rightHeadTriangles.length));
+        let randomColor = getRandomColorForBeat();
+        rightColoredTriangles.push({
+          index: randomTri,
+          color: randomColor,
+          life: 1.0
+        });
+      }
+    }
   } else {
     // Kein Beat: Lösche sofort alle farbigen Dreiecke
     coloredTriangles = [];
+    leftColoredTriangles = [];
+    rightColoredTriangles = [];
     // Reset für nächsten Kick
     lastKickCounted = false;
   }
 
   // Schnellere automatische Rotation
   rotationY += 0.03;
+  
+  // Psychose-Köpfe drehen in entgegengesetzte Richtungen
+  leftRotationY -= 0.025;  // Dreht nach links
+  rightRotationY += 0.035; // Dreht nach rechts (schneller)
   
   // Update Grid-Animationen
   updateGridAnimations();
@@ -234,6 +302,107 @@ function createHead() {
   
   // Füge Mund hinzu
   createMouth(scale);
+}
+
+/************************************/
+/* Psychose-Köpfe Erstellung        */
+/************************************/
+function createPsychosisHeads() {
+  let scale = min(width, height) * 0.25;
+  
+  // LINKER KOPF
+  leftHeadVertices = [];
+  leftHeadTriangles = [];
+  
+  let leftSegments = leftCurrentSegments;
+  let leftRings = leftCurrentRings;
+  
+  for (let ring = 0; ring <= leftRings; ring++) {
+    let phi = map(ring, 0, leftRings, 0, PI);
+    
+    for (let seg = 0; seg < leftSegments; seg++) {
+      let theta = map(seg, 0, leftSegments, 0, TWO_PI);
+      
+      let radiusX = scale * 0.8;
+      let radiusY = scale * (1.2 - ring / leftRings * 0.4);
+      let radiusZ = scale * 0.7;
+      
+      let x = radiusX * sin(phi) * cos(theta);
+      let y = radiusY * cos(phi) - scale * 0.3;
+      let z = radiusZ * sin(phi) * sin(theta);
+      
+      leftHeadVertices.push({x: x, y: y, z: z, ring: ring, seg: seg});
+    }
+  }
+  
+  for (let ring = 0; ring < leftRings; ring++) {
+    for (let seg = 0; seg < leftSegments; seg++) {
+      let nextSeg = (seg + 1) % leftSegments;
+      
+      let current = ring * leftSegments + seg;
+      let next = ring * leftSegments + nextSeg;
+      let below = (ring + 1) * leftSegments + seg;
+      let belowNext = (ring + 1) * leftSegments + nextSeg;
+      
+      if (ring < leftRings) {
+        leftHeadTriangles.push([current, next, below]);
+        leftHeadTriangles.push([next, belowNext, below]);
+      }
+    }
+  }
+  
+  // Füge Augen zum linken Kopf hinzu (größere Augen)
+  createPsychosisEyes(scale, leftHeadVertices, leftHeadTriangles, 0.18);
+  
+  // Füge Mund zum linken Kopf hinzu (breiterer Mund)
+  createPsychosisMouth(scale, leftHeadVertices, leftHeadTriangles, 0.5, 0.12);
+  
+  // RECHTER KOPF
+  rightHeadVertices = [];
+  rightHeadTriangles = [];
+  
+  let rightSegments = rightCurrentSegments;
+  let rightRings = rightCurrentRings;
+  
+  for (let ring = 0; ring <= rightRings; ring++) {
+    let phi = map(ring, 0, rightRings, 0, PI);
+    
+    for (let seg = 0; seg < rightSegments; seg++) {
+      let theta = map(seg, 0, rightSegments, 0, TWO_PI);
+      
+      let radiusX = scale * 0.8;
+      let radiusY = scale * (1.2 - ring / rightRings * 0.4);
+      let radiusZ = scale * 0.7;
+      
+      let x = radiusX * sin(phi) * cos(theta);
+      let y = radiusY * cos(phi) - scale * 0.3;
+      let z = radiusZ * sin(phi) * sin(theta);
+      
+      rightHeadVertices.push({x: x, y: y, z: z, ring: ring, seg: seg});
+    }
+  }
+  
+  for (let ring = 0; ring < rightRings; ring++) {
+    for (let seg = 0; seg < rightSegments; seg++) {
+      let nextSeg = (seg + 1) % rightSegments;
+      
+      let current = ring * rightSegments + seg;
+      let next = ring * rightSegments + nextSeg;
+      let below = (ring + 1) * rightSegments + seg;
+      let belowNext = (ring + 1) * rightSegments + nextSeg;
+      
+      if (ring < rightRings) {
+        rightHeadTriangles.push([current, next, below]);
+        rightHeadTriangles.push([next, belowNext, below]);
+      }
+    }
+  }
+  
+  // Füge Augen zum rechten Kopf hinzu (kleinere, enger beieinander)
+  createPsychosisEyes(scale, rightHeadVertices, rightHeadTriangles, 0.12);
+  
+  // Füge Mund zum rechten Kopf hinzu (schmalerer, höherer Mund)
+  createPsychosisMouth(scale, rightHeadVertices, rightHeadTriangles, 0.35, 0.18);
 }
 
 /************************************/
@@ -317,6 +486,87 @@ function createMouth(scale) {
     
     headTriangles.push([topCurrent, topNext, bottomCurrent]);
     headTriangles.push([topNext, bottomNext, bottomCurrent]);
+  }
+}
+
+/************************************/
+/* Psychose-Augen & Mund Erstellung */
+/************************************/
+function createPsychosisEyes(scale, vertices, triangles, eyeSizeMultiplier) {
+  let eyeSize = scale * eyeSizeMultiplier;
+  let eyeDistance = scale * 0.3;
+  let eyeDepth = scale * 0.55;
+  let eyeHeight = -scale * 0.1;
+  
+  // Linkes Auge
+  createPsychosisEye(-eyeDistance, eyeHeight, eyeDepth, eyeSize, vertices, triangles);
+  
+  // Rechtes Auge
+  createPsychosisEye(eyeDistance, eyeHeight, eyeDepth, eyeSize, vertices, triangles);
+}
+
+function createPsychosisEye(centerX, centerY, centerZ, size, vertices, triangles) {
+  let startIndex = vertices.length;
+  let segments = 8;
+  
+  // Zentrum des Auges
+  vertices.push({x: centerX, y: centerY, z: centerZ});
+  
+  // Ring um das Auge
+  for (let i = 0; i < segments; i++) {
+    let angle = map(i, 0, segments, 0, TWO_PI);
+    let x = centerX + cos(angle) * size;
+    let y = centerY + sin(angle) * size;
+    let z = centerZ + size * 0.1;
+    
+    vertices.push({x: x, y: y, z: z});
+  }
+  
+  // Erstelle Dreiecke für das Auge
+  for (let i = 0; i < segments; i++) {
+    let next = (i + 1) % segments;
+    triangles.push([startIndex, startIndex + 1 + i, startIndex + 1 + next]);
+  }
+}
+
+function createPsychosisMouth(scale, vertices, triangles, widthMultiplier, heightMultiplier) {
+  let mouthWidth = scale * widthMultiplier;
+  let mouthHeight = scale * heightMultiplier;
+  let mouthY = scale * 0.25;
+  let mouthZ = scale * 0.5;
+  
+  let startIndex = vertices.length;
+  let segments = 10;
+  
+  // Obere Lippenlinie
+  for (let i = 0; i <= segments; i++) {
+    let t = map(i, 0, segments, -1, 1);
+    let x = t * mouthWidth;
+    let y = mouthY - abs(t) * mouthHeight * 0.3;
+    let z = mouthZ;
+    
+    vertices.push({x: x, y: y, z: z});
+  }
+  
+  // Untere Lippenlinie
+  for (let i = 0; i <= segments; i++) {
+    let t = map(i, 0, segments, -1, 1);
+    let x = t * mouthWidth;
+    let y = mouthY + mouthHeight - abs(t) * mouthHeight * 0.2;
+    let z = mouthZ - mouthHeight * 0.1;
+    
+    vertices.push({x: x, y: y, z: z});
+  }
+  
+  // Verbinde obere und untere Linie mit Dreiecken
+  for (let i = 0; i < segments; i++) {
+    let topCurrent = startIndex + i;
+    let topNext = startIndex + i + 1;
+    let bottomCurrent = startIndex + segments + 1 + i;
+    let bottomNext = startIndex + segments + 1 + i + 1;
+    
+    triangles.push([topCurrent, topNext, bottomCurrent]);
+    triangles.push([topNext, bottomNext, bottomCurrent]);
   }
 }
 
@@ -866,12 +1116,12 @@ function updateGlitch() {
 /* Psychose-Effekt (3 Köpfe)        */
 /************************************/
 function checkPsychosisState() {
-  // Berechne Position im 30-Kick-Zyklus (10 Kicks Pause + 20 Kicks Anzeige)
-  let cyclePosition = kickCounter % 30;
+  // Berechne Position im 20-Kick-Zyklus (5 Kicks Pause + 15 Kicks Anzeige)
+  let cyclePosition = kickCounter % 20;
   
-  // Kicks 1-10: Psychose aus
-  // Kicks 11-30: Psychose an
-  if (cyclePosition >= 10 || cyclePosition === 0) {
+  // Kicks 1-5: Psychose aus
+  // Kicks 6-20: Psychose an
+  if (cyclePosition >= 5 || cyclePosition === 0) {
     if (!isPsychosis) {
       isPsychosis = true;
       psychosisKickStart = kickCounter;
@@ -893,11 +1143,26 @@ function triggerPsychosis() {
 
 function updatePsychosis() {
   if (isPsychosis) {
-    // Glitch-Offsets für beide Köpfe (unabhängig voneinander) - reduziert
-    leftHeadGlitchX = random(-8, 8);
-    leftHeadGlitchY = random(-5, 5);
-    rightHeadGlitchX = random(-8, 8);
-    rightHeadGlitchY = random(-5, 5);
+    // Berechne Glitch-Stärke basierend auf Bass und Tiefen (sub_freq und low_freq)
+    // Normalisiere die FFT-Werte (typischerweise 0-255) auf einen Bereich von 0-1
+    let bassIntensity = map(sub_freq, 0, 255, 0, 1);
+    let lowIntensity = map(low_freq, 0, 255, 0, 1);
+    
+    // Kombiniere beide Werte für die Gesamtstärke
+    let glitchStrength = (bassIntensity + lowIntensity) / 2;
+    
+    // Verstärke die Effekte bei höheren Werten (quadratisch für mehr Dynamik)
+    glitchStrength = pow(glitchStrength, 1.5);
+    
+    // Berechne maximale Glitch-Offsets basierend auf der Stärke
+    let maxOffsetX = glitchStrength * 40; // Erhöht von 8 auf bis zu 40
+    let maxOffsetY = glitchStrength * 25; // Erhöht von 5 auf bis zu 25
+    
+    // Glitch-Offsets für beide Köpfe (unabhängig voneinander)
+    leftHeadGlitchX = random(-maxOffsetX, maxOffsetX);
+    leftHeadGlitchY = random(-maxOffsetY, maxOffsetY);
+    rightHeadGlitchX = random(-maxOffsetX, maxOffsetX);
+    rightHeadGlitchY = random(-maxOffsetY, maxOffsetY);
   } else {
     leftHeadGlitchX = 0;
     leftHeadGlitchY = 0;
@@ -907,38 +1172,38 @@ function updatePsychosis() {
 }
 
 function drawPsychosisHeads() {
-  // Linker Kopf (mit Glitch)
+  // Linker Kopf (dreht nach links)
   push();
   translate(-width * 0.3 + leftHeadGlitchX, leftHeadGlitchY, 0);
-  drawHeadCopy(); // Exakte Kopie des Hauptkopfes
+  drawLeftHead();
   pop();
   
-  // Rechter Kopf (mit Glitch)
+  // Rechter Kopf (dreht nach rechts)
   push();
   translate(width * 0.3 + rightHeadGlitchX, rightHeadGlitchY, 0);
-  drawHeadCopy(); // Exakte Kopie des Hauptkopfes
+  drawRightHead();
   pop();
 }
 
-function drawHeadCopy() {
+function drawLeftHead() {
   push();
   
-  // Rotation basierend auf Zeit und Audio (gleich wie Hauptkopf)
-  rotateY(rotationY + ampAverage * 0.7);
+  // Rotation NACH LINKS (entgegengesetzt zum Hauptkopf)
+  rotateY(leftRotationY + ampAverage * 0.7);
   rotateX(sin(frameCount * 0.01) * 0.1);
   
-  // Zeichne alle Dreiecke GENAU WIE HAUPTKOPF (mit farbigen Dreiecken)
-  for (let i = 0; i < headTriangles.length; i++) {
-    let tri = headTriangles[i];
-    let v1 = headVertices[tri[0]];
-    let v2 = headVertices[tri[1]];
-    let v3 = headVertices[tri[2]];
+  // Zeichne alle Dreiecke des linken Kopfes
+  for (let i = 0; i < leftHeadTriangles.length; i++) {
+    let tri = leftHeadTriangles[i];
+    let v1 = leftHeadVertices[tri[0]];
+    let v2 = leftHeadVertices[tri[1]];
+    let v3 = leftHeadVertices[tri[2]];
     
-    // Prüfe ob dieses Dreieck gerade gefüllt sein soll (bei Beat)
+    // Prüfe ob dieses Dreieck gerade gefüllt sein soll
     let shouldFill = false;
     let fillColor = color(255);
     
-    for (let colored of coloredTriangles) {
+    for (let colored of leftColoredTriangles) {
       if (colored.index === i) {
         shouldFill = true;
         fillColor = colored.color;
@@ -946,7 +1211,7 @@ function drawHeadCopy() {
       }
     }
     
-    // Zeichne Dreieck GENAU WIE HAUPTKOPF
+    // Zeichne Dreieck
     if (shouldFill) {
       let flickeredColor = color(
         red(fillColor) * flickerIntensity,
@@ -962,13 +1227,70 @@ function drawHeadCopy() {
       strokeWeight(1.5);
     }
     
-    // Leichte Animation der Vertices basierend auf Audio
+    // Animation
     let wobble = ampAverage * 30;
     let noise1 = noise(frameCount * 0.01 + tri[0]) * wobble;
     let noise2 = noise(frameCount * 0.01 + tri[1]) * wobble;
     let noise3 = noise(frameCount * 0.01 + tri[2]) * wobble;
     
-    // Zeichne Dreieck in 3D
+    beginShape();
+    vertex(v1.x + noise1, v1.y, v1.z);
+    vertex(v2.x + noise2, v2.y, v2.z);
+    vertex(v3.x + noise3, v3.y, v3.z);
+    endShape(CLOSE);
+  }
+  
+  pop();
+}
+
+function drawRightHead() {
+  push();
+  
+  // Rotation NACH RECHTS (schneller als Hauptkopf)
+  rotateY(rightRotationY + ampAverage * 0.7);
+  rotateX(sin(frameCount * 0.01) * 0.1);
+  
+  // Zeichne alle Dreiecke des rechten Kopfes
+  for (let i = 0; i < rightHeadTriangles.length; i++) {
+    let tri = rightHeadTriangles[i];
+    let v1 = rightHeadVertices[tri[0]];
+    let v2 = rightHeadVertices[tri[1]];
+    let v3 = rightHeadVertices[tri[2]];
+    
+    // Prüfe ob dieses Dreieck gerade gefüllt sein soll
+    let shouldFill = false;
+    let fillColor = color(255);
+    
+    for (let colored of rightColoredTriangles) {
+      if (colored.index === i) {
+        shouldFill = true;
+        fillColor = colored.color;
+        break;
+      }
+    }
+    
+    // Zeichne Dreieck
+    if (shouldFill) {
+      let flickeredColor = color(
+        red(fillColor) * flickerIntensity,
+        green(fillColor) * flickerIntensity,
+        blue(fillColor) * flickerIntensity
+      );
+      fill(flickeredColor);
+      stroke(255 * flickerIntensity, 255 * flickerIntensity, 255 * flickerIntensity, 200 * flickerIntensity);
+      strokeWeight(2);
+    } else {
+      noFill();
+      stroke(255 * flickerIntensity, 255 * flickerIntensity, 255 * flickerIntensity, 180 * flickerIntensity);
+      strokeWeight(1.5);
+    }
+    
+    // Animation
+    let wobble = ampAverage * 30;
+    let noise1 = noise(frameCount * 0.01 + tri[0]) * wobble;
+    let noise2 = noise(frameCount * 0.01 + tri[1]) * wobble;
+    let noise3 = noise(frameCount * 0.01 + tri[2]) * wobble;
+    
     beginShape();
     vertex(v1.x + noise1, v1.y, v1.z);
     vertex(v2.x + noise2, v2.y, v2.z);
