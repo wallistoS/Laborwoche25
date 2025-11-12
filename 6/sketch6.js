@@ -101,7 +101,7 @@ let clippyRotation = 0; // Beat-Animation Rotation
 let clippyMessageIndex = 0; // Welche Sprechblase angezeigt wird (0 = erste, 1 = zweite)
 
 function preload() {
-  sound = loadSound("./assets/Gonzi_BASSKILLER.mp3");
+  sound = loadSound("./assets/99luftballons.mp3");
   clippySvg = loadImage("./assets/microsoft-clippy.svg");
 }
 
@@ -232,8 +232,8 @@ function draw() {
   // Crash scheduling: wiederkehrend alle crashIntervalMs
   if (isStarted && crashScheduled && millis() >= nextCrashTime) {
     isCrashing = true;
-    // Crashdauer 1-2 Sekunden
-    let durMs = int(random(1000, 2000));
+    // Crashdauer: 1 Sekunde
+    let durMs = 500;
     crashEndTime = millis() + durMs;
     // plane nächsten Crash
     nextCrashTime = millis() + crashIntervalMs;
@@ -750,7 +750,7 @@ function drawSingleErrorWindow(win, index) {
   fill(240, 240, 240, win.alpha);
   textAlign(LEFT, TOP);
   textSize(20);
-  let msg = "Loading Dream has been failed.\nNightmare protocol initiated.";
+  let msg = "Loading Dream.exe has been failed.\nNightmare protocol initiated.";
   // leicht höher platzieren damit größere Schrift passt
   text(msg, 90, 44);
 

@@ -91,7 +91,7 @@ let rightCurrentRings = 6;
 let rightRotationY = 0;
 
 function preload() {
-  sound = loadSound("./assets/audio/LanaTechno.mp3");
+  sound = loadSound("./assets/audio/99luftballons.mp3");
 }
 
 function setup() {
