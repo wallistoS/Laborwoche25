@@ -76,6 +76,21 @@ let speedMultiplier = 1.0; // Erhöht sich mit jedem Hindernis
 let kickCounter = 0;
 let dinoTintColor = [255, 255, 255]; // Standard: Weiß [R, G, B]
 
+// Dino Hue-Shift (für sanften Farb-Tween bei Kick)
+let dinoHue = 0; // 0-360
+let dinoHueTarget = 0;
+let dinoHueSaturation = 90;
+let dinoHueBrightness = 100;
+
+// Kontrast/ADD-Flash bei Kick
+let kickContrast = 0;
+
+// Bass-Drop Detection (für tiefe Frequenzen)
+let bassHistory = [];
+let lastBass = 0;
+let bassDropDetected = false;
+let bassDropThreshold = 35; // Schwellwert für Bass-Anstieg
+
 // Party-Modus (ab 3. Hindernis)
 let partyMode = false;
 let bgColor = [0, 0, 0]; // Hintergrundfarbe
@@ -106,7 +121,7 @@ let hi_freq = 0;
 let treble_freq = 0;
 
 function preload() {
-  sound = loadSound("./assets/LanaTechno.mp3");
+  sound = loadSound("./assets/Gonzi_Basskiller.mp3");
   dinoLeftImg = loadImage("./assets/Chrome_T-Rex_Left_Run.webp");
   dinoRightImg = loadImage("./assets/Chrome_T-Rex_Right_Run.webp");
   cactusImg = loadImage("./assets/1_Cactus_Chrome_Dino.webp");
@@ -116,7 +131,7 @@ function preload() {
 
 function setup() {
   createCanvas(1920, 450);
-  frameRate(90); // Verdreifacht von 30 auf 90
+  frameRate(30); // Verdreifacht von 30 auf 90
 
   groundY = height - 80;
   dinoY = groundY - dinoSize;
@@ -168,6 +183,7 @@ function draw() {
   if (isStarted && !gameOver) {
     // Musik-Analyse
     isBeatDetected = beatDetection();
+    let isBassDropDetected = bassDropDetection();
     ampAverage = amplitude.getLevel();
     fftEnergy = getFFTEnergy();
     
@@ -178,8 +194,8 @@ function draw() {
       groundVibration = lerp(groundVibration, 0, 0.3);
     }
 
-    // Beat-reaktive Effekte (Beat = Kick, beide lösen die gleichen Effekte aus)
-    if (isBeatDetected) {
+    // Beat-reaktive Effekte (Beat = Kick ODER Bass-Drop, beide lösen die gleichen Effekte aus)
+    if (isBeatDetected || isBassDropDetected) {
       // Schwarzes Flackern bei Beat/Kick (nur wenn nicht im Party-Modus)
       if (!partyMode) {
         blackFlashIntensity = 255;
@@ -194,7 +210,9 @@ function draw() {
       
       // Kick-Counter erhöhen und Farbe ändern bei JEDEM Beat/Kick
       kickCounter++;
-      changeDinoColor();
+      // Trigger hue-shift tween and additive contrast flash
+      triggerDinoHueShift();
+      kickContrast = 255;
       
       // Im Party-Modus: Ändere alle Farben bei jedem Beat
       if (partyMode) {
@@ -237,6 +255,8 @@ function draw() {
   drawDino();
   drawObstacles();
   drawParticles();
+  // Additive contrast boost on kicks (over everything else but under black flash)
+  drawKickContrast();
   
   // UI-Elemente
   drawHighScore();
@@ -317,7 +337,15 @@ function drawDino() {
   let dinoH = dinoSize * bassScale;
   
   // Wende Farbfilter an
-  tint(dinoTintColor[0], dinoTintColor[1], dinoTintColor[2]);
+  // Smooth hue interpolation for short tween on kick
+  // Interpolate current hue towards target for a short/tight tween
+  dinoHue = lerp(dinoHue, dinoHueTarget, 0.28);
+
+  // Convert HSB color to RGB for tinting
+  colorMode(HSB, 360, 100, 100);
+  let c = color(dinoHue, dinoHueSaturation, dinoHueBrightness);
+  colorMode(RGB, 255);
+  tint(red(c), green(c), blue(c));
   
   imageMode(CENTER);
   image(currentFrame, dinoX, dinoY + dinoSize/2, dinoW, dinoH);
@@ -340,6 +368,12 @@ function changeDinoColor() {
   
   // Wähle eine zufällige Farbe
   dinoTintColor = random(colors);
+}
+
+// Trigger a short hue shift on the Dino when a kick/beat occurs
+function triggerDinoHueShift() {
+  // pick a noticeable hue shift (wrap-around allowed)
+  dinoHueTarget = (dinoHue + random(60, 160)) % 360;
 }
 
 function changeAllColors() {
@@ -697,6 +731,56 @@ function drawParticles() {
   pop();
 }
 
+// Draw an additive, overexposed ring/flash for contrast boost on kick
+function drawKickContrast() {
+  if (kickContrast <= 1) return;
+
+  push();
+  // additive blending to fake contrast/overexposure
+  blendMode(ADD);
+  noStroke();
+
+  // Base size influenced by bass
+  // Smaller ring around the Dino (user request)
+  // Base size smaller and positioned at the Dino
+  let centerX = dinoX;
+  let centerY = dinoY + dinoSize / 2;
+
+  // smaller base size, still reacting to bass but limited
+  let baseSize = 60 + map(low_freq, 0, 255, 0, 160); // ~60 - 220
+
+  // draw a few concentric soft rings (subtle)
+  // Pixelated ring: draw small squares in an annulus around the Dino
+  rectMode(CENTER);
+  // pixel size scales a bit with baseSize but remains blocky
+  let pixelSize = max(4, floor(map(baseSize, 60, 220, 5, 10)));
+
+  // define inner/outer radius for the ring (elliptical vertically)
+  let innerR = baseSize * 0.72;
+  let outerR = baseSize * 1.05;
+
+  // iterate over a tight bounding box and place blocks where distance fits the annulus
+  for (let px = centerX - baseSize; px <= centerX + baseSize; px += pixelSize) {
+    for (let py = centerY - baseSize * 0.6; py <= centerY + baseSize * 0.6; py += pixelSize) {
+      // account for vertical squish to keep elliptical shape similar to previous ring
+      let dx = px - centerX;
+      let dy = (py - centerY) / 0.6; // scale Y for elliptical distance
+      let d = sqrt(dx * dx + dy * dy);
+      if (d >= innerR && d <= outerR) {
+        // normalized falloff from inner to outer
+        let norm = 1 - (d - innerR) / (outerR - innerR);
+        let a = (kickContrast / 255) * (140 * norm); // alpha per block
+        fill(255, a);
+        rect(px, py, pixelSize, pixelSize);
+      }
+    }
+  }
+
+  // decay the contrast quickly but keep smooth
+  kickContrast = lerp(kickContrast, 0, 0.42);
+  pop();
+}
+
 /************************************/
 /* Visuelle Effekte                 */
 /************************************/
@@ -913,6 +997,39 @@ function updateThresholdsKick() {
   maxAmpFreq = max(maxAmpFreq, ampLevelClamp);
   maxAmpFreq *= 0.99999;
   thresholdKick = maxAmpFreq * thresholdKickFraction;
+}
+
+/*******************************/
+/* Code für Bass-Drop Detection */
+/*******************************/
+function bassDropDetection() {
+  // Verwende sub_freq (tiefste Frequenzen) für Bass-Drop-Erkennung
+  let currentBass = sub_freq;
+  
+  // Berechne die Differenz zum vorherigen Frame (Delta)
+  let bassDelta = currentBass - lastBass;
+  
+  // Speichere Bass-Historie für smoothing
+  bassHistory.push(currentBass);
+  if (bassHistory.length > 60) {
+    bassHistory.shift();
+  }
+  
+  // Erkenne starke Anstiege im Bass (Drop)
+  // Nur wenn Bass aktuell auch hoch genug ist (mindestens 100)
+  if (bassDelta > bassDropThreshold && currentBass > 100 && !bassDropDetected) {
+    bassDropDetected = true;
+    lastBass = currentBass;
+    return true;
+  } else if (bassDelta < bassDropThreshold * 0.3) {
+    // Reset detection wenn Delta wieder klein wird
+    bassDropDetected = false;
+  }
+  
+  // Update lastBass mit leichtem smoothing für stabilere Detection
+  lastBass = lerp(lastBass, currentBass, 0.3);
+  
+  return false;
 }
 
 function debuggerKick() {

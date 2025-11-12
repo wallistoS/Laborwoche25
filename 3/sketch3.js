@@ -22,6 +22,13 @@ let thresholdKickFraction = 0.5;
 const debugFFT = false;
 const debugKick = false;
 
+// Verbesserte Beat Detection Variablen (aus p5.js Beispiel)
+let beatHoldFrames = 5;     // Frames warten bevor nächster Beat erkannt werden kann
+let beatThreshold = 0.05;     // Minimale Amplitude für Beat
+let beatCutoff = 0;           // Dynamischer Cutoff der nach Beat steigt und fällt
+let beatDecayRate = 0.90;     // Wie schnell fällt beatCutoff ab?
+let framesSinceLastBeat = 0;  // Counter für Frames seit letztem Beat
+
 /************************************/
 /* Variablen für den Kopf           */
 /************************************/
@@ -44,6 +51,12 @@ let flickerIntensity = 1.0; // 1.0 = normal, < 1.0 = gedimmt
 let isFlickering = false;
 let flickerDuration = 0;
 let scanLineOffset = 0;     // Offset für Scan-Lines
+
+// Bass-Drop Detection (für tiefe Frequenzen)
+let bassHistory = [];
+let lastBass = 0;
+let bassDropDetected = false;
+let bassDropThreshold = 10; // Schwellwert für Bass-Anstieg
 
 // Glitch-Effekt
 let isGlitching = false;
@@ -78,7 +91,7 @@ let rightCurrentRings = 6;
 let rightRotationY = 0;
 
 function preload() {
-  sound = loadSound("./assets/audio/katyperry.mp3");
+  sound = loadSound("./assets/audio/LanaTechno.mp3");
 }
 
 function setup() {
@@ -86,6 +99,7 @@ function setup() {
   frameRate(30);
 
   amplitude = new p5.Amplitude();
+  amplitude.smooth(0.9); // Smoothing wie im Beispiel
 
   low_fft = new p5.FFT(0.9, band_cnt);
   mid_fft = new p5.FFT(0.75, band_cnt);
@@ -115,9 +129,11 @@ function mousePressed() {
 }
 
 function draw() {
-  background(0);
+  // etwas hellerer Hintergrund für besser sichtbares Grid
+  background(20);
 
   isBeatDetected = beatDetection();
+  let isBassDropDetected = bassDropDetection();
   ampAverage = amplitude.getLevel();
   fftEnergy = getFFTEnergy();
   
@@ -127,8 +143,8 @@ function draw() {
   updateGlitch();
   updatePsychosis();
 
-  // Bei Beat: Ersetze komplett die Farb-Liste (sofortiger Effekt)
-  if (isBeatDetected) {
+  // Bei Beat ODER Bass-Drop: Ersetze komplett die Farb-Liste (sofortiger Effekt)
+  if (isBeatDetected || isBassDropDetected) {
     coloredTriangles = []; // Leere alte Liste
     
     // Zähle Kicks nur einmal pro Beat (nicht mehrfach wenn isBeatDetected mehrere Frames true ist)
@@ -718,9 +734,9 @@ function drawBackgroundGrid() {
     if (gridLine.isActive) {
       // Aktive Linie mit Lichtfaden-Animation (keine Basislinie)
       drawAnimatedLine(gridLine, x1, y1, x2, y2);
-    } else {
-      // Inaktive Linien: Zeichne dünnes graues Grid (mit Flicker)
-      stroke(40 * flickerIntensity, 40 * flickerIntensity, 40 * flickerIntensity);
+      } else {
+      // Inaktive Linien: Zeichne dünnes, helleres graues Grid (mit Flicker)
+      stroke(140 * flickerIntensity, 140 * flickerIntensity, 140 * flickerIntensity);
       strokeWeight(1);
       line(x1, y1, x2, y2);
     }
@@ -750,8 +766,9 @@ function drawAnimatedLine(gridLine, x1, y1, x2, y2) {
       let y2Trail = lerp(y1, y2, t2);
       
       // Fade-out: Je näher am Anfang, desto transparenter (mit Flicker)
-      let fadeAlpha = map(t1, 0, gridLine.progress, 0, 180) * flickerIntensity;
-      stroke(180 * flickerIntensity, 180 * flickerIntensity, 180 * flickerIntensity, fadeAlpha);
+      // erhöhte maximale Helligkeit für stärkeren Grid-Glow
+      let fadeAlpha = map(t1, 0, gridLine.progress, 0, 230) * flickerIntensity;
+      stroke(230 * flickerIntensity, 230 * flickerIntensity, 230 * flickerIntensity, fadeAlpha);
       strokeWeight(2);
       line(x1Trail, y1Trail, x2Trail, y2Trail);
     }
@@ -762,7 +779,8 @@ function drawAnimatedLine(gridLine, x1, y1, x2, y2) {
   
   // Mehrere Glow-Layers
   for (let i = 6; i > 0; i--) {
-    let alpha = map(i, 0, 6, 50, 255) * flickerIntensity;
+    // verstärkte Glow-Layers für größere Sichtbarkeit
+    let alpha = map(i, 0, 6, 60, 255) * flickerIntensity;
     let weight = map(i, 0, 6, 10, 2);
     stroke(255 * flickerIntensity, 255 * flickerIntensity, 255 * flickerIntensity, alpha);
     strokeWeight(weight);
@@ -888,7 +906,33 @@ let thresholdKick;
 let kickDetected = false;
 let maxAmpFreq = 0;
 
+// Verbesserte Beat Detection basierend auf p5.js Beispiel
 function beatDetection() {
+  // Hole aktuellen Amplitude Level
+  let level = amplitude.getLevel();
+  
+  // Beat Detection: Level muss über beatCutoff UND beatThreshold sein
+  if (level > beatCutoff && level > beatThreshold) {
+    // Beat erkannt!
+    beatCutoff = level * 1.2; // Setze cutoff höher als aktueller level
+    framesSinceLastBeat = 0;  // Reset frame counter
+    return true;
+  } else {
+    // Kein Beat
+    if (framesSinceLastBeat <= beatHoldFrames) {
+      // Wir sind noch in der "Hold"-Phase, erhöhe counter
+      framesSinceLastBeat++;
+    } else {
+      // Hold-Phase vorbei, lasse beatCutoff decayen
+      beatCutoff *= beatDecayRate;
+      beatCutoff = Math.max(beatCutoff, beatThreshold); // Nie unter threshold
+    }
+    return false;
+  }
+}
+
+// Alte Funktion als Backup (nicht mehr verwendet)
+function beatDetectionOld() {
   ampLevel = amplitude.getLevel() * levelMultiplicator;
   ampEnergyArray.push(ampLevel);
   if (ampEnergyArray.length > 180) {
@@ -924,6 +968,39 @@ function updateThresholdsKick() {
   maxAmpFreq = max(maxAmpFreq, ampLevelClamp);
   maxAmpFreq *= 0.99999;
   thresholdKick = maxAmpFreq * thresholdKickFraction;
+}
+
+/*******************************/
+/* Code für Bass-Drop Detection */
+/*******************************/
+function bassDropDetection() {
+  // Verwende sub_freq (tiefste Frequenzen) für Bass-Drop-Erkennung
+  let currentBass = sub_freq;
+  
+  // Berechne die Differenz zum vorherigen Frame (Delta)
+  let bassDelta = currentBass - lastBass;
+  
+  // Speichere Bass-Historie für smoothing
+  bassHistory.push(currentBass);
+  if (bassHistory.length > 60) {
+    bassHistory.shift();
+  }
+  
+  // Erkenne starke Anstiege im Bass (Drop)
+  // Nur wenn Bass aktuell auch hoch genug ist (mindestens 100)
+  if (bassDelta > bassDropThreshold && currentBass > 100 && !bassDropDetected) {
+    bassDropDetected = true;
+    lastBass = currentBass;
+    return true;
+  } else if (bassDelta < bassDropThreshold * 0.3) {
+    // Reset detection wenn Delta wieder klein wird
+    bassDropDetected = false;
+  }
+  
+  // Update lastBass mit leichtem smoothing für stabilere Detection
+  lastBass = lerp(lastBass, currentBass, 0.3);
+  
+  return false;
 }
 
 function debuggerKick() {
@@ -1011,35 +1088,37 @@ function drawVignette() {
   camera(0, 0, (height/2.0) / tan(PI*30.0 / 180.0), 0, 0, 0, 0, 1, 0);
   resetMatrix();
   
-  // Zeichne rechteckige Vignette von den Canvas-Rändern
-  let vignetteSize = min(width, height) * 0.4; // Wie weit die Verdunkelung reingeht
+  // Zeichne stärkere rechteckige Vignette von den Canvas-Rändern
+  // Erhöhe Größe & Alpha, damit Vignette auch bei helleren Hintergründen sichtbar bleibt
+  let vignetteSize = min(width, height) * 0.5; // stärkeres Einblenden
   
   noStroke();
   
   // Oben
   for (let i = 0; i < vignetteSize; i++) {
-    let alpha = map(i, 0, vignetteSize, 150, 0);
+    // stärkerer Max-Alpha für bessere Sichtbarkeit
+    let alpha = map(i, 0, vignetteSize, 220, 0);
     fill(0, alpha);
     rect(-width/2, -height/2 + i, width, 1);
   }
   
   // Unten
   for (let i = 0; i < vignetteSize; i++) {
-    let alpha = map(i, 0, vignetteSize, 150, 0);
+    let alpha = map(i, 0, vignetteSize, 220, 0);
     fill(0, alpha);
     rect(-width/2, height/2 - i, width, 1);
   }
   
   // Links
   for (let i = 0; i < vignetteSize; i++) {
-    let alpha = map(i, 0, vignetteSize, 150, 0);
+    let alpha = map(i, 0, vignetteSize, 220, 0);
     fill(0, alpha);
     rect(-width/2 + i, -height/2, 1, height);
   }
   
   // Rechts
   for (let i = 0; i < vignetteSize; i++) {
-    let alpha = map(i, 0, vignetteSize, 150, 0);
+    let alpha = map(i, 0, vignetteSize, 220, 0);
     fill(0, alpha);
     rect(width/2 - i, -height/2, 1, height);
   }
