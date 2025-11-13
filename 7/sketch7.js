@@ -150,7 +150,7 @@ function playRandomSound() {
   fft.setInput(currentSound);
   amplitude.setInput(currentSound);
   
-  console.log(`Playing: Song ${currentSoundIndex + 1}/${sounds.length}`);
+  // console.log(`Playing: Song ${currentSoundIndex + 1}/${sounds.length}`);
   currentSound.play();
 }
 
@@ -192,8 +192,8 @@ function draw() {
   // Post-Processing
   drawPsychedelicEffects();
   
-  // Debug Info
-  drawDebugInfo();
+  // Debug Info - AUSKOMMENTIERT
+  // drawDebugInfo();
 }
 
 function analyzeAudio() {
@@ -279,20 +279,21 @@ function analyzeAudio() {
         demon.screamMode = false;
         // NICHT mehr alle Partikel sofort löschen - sie lösen sich langsam auf
       } else {
-        // Erstelle lila Rauch-Partikel während Scream - AUS DEM MUND
-        if (frameCount % 2 === 0) {
+        // Erstelle lila Rauch-Partikel während Scream - WEITER UNTEN AM MUND
+        if (frameCount % 3 === 0) { // Weniger Partikel für realistischeren Look
           demon.smokeParticles.push({
-            x: random(-20, 20), // Leicht seitlich vom Mund
-            y: demon.size * 0.28, // Mundposition
-            vx: random(-1.5, 1.5), // Seitliche Bewegung
-            vy: random(-2, -0.5), // Nach oben
-            size: random(18, 40),
+            x: random(-25, 25), // Breiter gestreut
+            y: demon.size * 0.5 + random(-10, 20), // WEITER UNTEN (war random(-20, 20))
+            vx: random(-1.5, 1.5), // Seitliche Drift beim Absacken
+            vy: 0,
+            size: random(15, 35), // Kleinere Startgröße
             alpha: 255,
             life: 1.0,
-            startY: demon.size * 0.28, // Startposition für nach-oben-Bewegung
-            wobblePhase: random(TWO_PI), // Phase für Wabern
-            wobbleSpeed: random(0.03, 0.08), // Geschwindigkeit des Waberns
-            wobbleAmount: random(15, 30) // Amplitude des Waberns (größer für sichtbares Wabern)
+            targetX: random(-60, 60), // Zielposition für Wolken-Sammlung
+            targetY: demon.size * 0.7, // Sammelt sich noch weiter unten
+            gathered: false, // Ob sich Partikel schon gesammelt hat
+            rotation: random(TWO_PI), // Rotation für organischen Look
+            rotationSpeed: random(-0.02, 0.02)
           });
         }
       }
@@ -301,27 +302,47 @@ function analyzeAudio() {
       for (let i = demon.smokeParticles.length - 1; i >= 0; i--) {
         let p = demon.smokeParticles[i];
         
-        // Update Wabern-Phase
-        p.wobblePhase += p.wobbleSpeed;
-        
-        // Wabern-Effekt: Sinusförmige seitliche Bewegung
-        let wobbleX = sin(p.wobblePhase) * p.wobbleAmount;
-        let wobbleY = cos(p.wobblePhase * 1.3) * p.wobbleAmount * 0.3; // Weniger vertikales Wabern
-        
-        // Nach oben bewegen mit Wabern (direkt Position ändern)
-        p.x += p.vx * 0.3 + wobbleX * 0.15; // Langsame seitliche Drift + Wabern
-        p.y += p.vy + wobbleY * 0.1; // Nach oben + leichtes Wabern
-        
-        // Nach Scream-Ende: Rauch löst sich SEHR SEHR langsam auf
-        if (!demon.screamMode) {
-          p.life -= 0.0015; // EXTREM langsam verblassen
-          p.vy *= 0.98; // Langsamer werden beim Aufsteigen
-          p.wobbleAmount += 0.15; // Wabern wird größer beim Auflösen
+        // PHASE 1: Partikel sacken nach unten ab
+        if (!p.gathered) {
+          // Erst nach unten fallen lassen
+          p.x += p.vx; // Seitliche Drift
+          p.y += 2.5; // Nach unten sacken
+          p.vx *= 0.95; // Seitliche Bewegung abbremsen
+          
+          // Wenn weit genug unten: Beginne zur Wolke zu sammeln
+          if (p.y > demon.size * 0.65) { // Noch weiter unten
+            // Bewege zur Zielposition (Wolken-Sammlung)
+            p.x = lerp(p.x, p.targetX, 0.04); // Sammeln
+            p.y = lerp(p.y, p.targetY, 0.04);
+            
+            // Prüfe ob Ziel erreicht (Wolke gesammelt)
+            let distToTarget = dist(p.x, p.y, p.targetX, p.targetY);
+            if (distToTarget < 15) {
+              p.gathered = true; // Wolke ist gesammelt
+            }
+          }
         } else {
-          p.life -= 0.008; // Während Scream
+          // PHASE 2: Wolke steht still und verblasst SEHR langsam (3-4 Sekunden)
+          // Nur minimale Bewegung (leichtes Wabern)
+          p.x += sin(frameCount * 0.03 + p.targetX) * 0.3;
+          p.y += cos(frameCount * 0.025 + p.targetY) * 0.2;
         }
         
-        p.size += 0.3; // Langsamer wachsen
+        // Rotation für organischen Look
+        p.rotation += p.rotationSpeed;
+        
+        // Nach Scream-Ende: Rauch verblasst langsam
+        if (!demon.screamMode) {
+          if (p.gathered) {
+            p.life -= 0.0045; // Gesammelte Wolke verblasst SEHR langsam (~3.7 Sekunden bei 60fps)
+          } else {
+            p.life -= 0.005; // Fallende Partikel etwas schneller
+          }
+        } else {
+          p.life -= 0.002; // Während Scream noch langsamer
+        }
+        
+        p.size += 0.4; // Wächst etwas mehr für Rauch-Effekt
         p.alpha = p.life * 255;
         
         if (p.life <= 0) {
@@ -329,25 +350,43 @@ function analyzeAudio() {
         }
       }
     } else if (demon.smokeParticles.length > 0) {
-      // Auch nach Scream-Ende weiter Partikel updaten (Auflösung)
+      // Auch nach Scream-Ende weiter Partikel updaten (Wolke verblasst)
       for (let i = demon.smokeParticles.length - 1; i >= 0; i--) {
         let p = demon.smokeParticles[i];
         
-        // Update Wabern-Phase
-        p.wobblePhase += p.wobbleSpeed;
+        // Absacken und zur Wolke sammeln
+        if (!p.gathered) {
+          // Erst nach unten fallen lassen
+          p.x += p.vx;
+          p.y += 2.5; // Nach unten sacken
+          p.vx *= 0.95;
+          
+          // Wenn weit genug unten: Beginne zu sammeln
+          if (p.y > demon.size * 0.65) {
+            p.x = lerp(p.x, p.targetX, 0.04);
+            p.y = lerp(p.y, p.targetY, 0.04);
+            
+            let distToTarget = dist(p.x, p.y, p.targetX, p.targetY);
+            if (distToTarget < 15) {
+              p.gathered = true;
+            }
+          }
+        } else {
+          // Leichtes Wabern während Verblassen
+          p.x += sin(frameCount * 0.03 + p.targetX) * 0.3;
+          p.y += cos(frameCount * 0.025 + p.targetY) * 0.2;
+        }
         
-        // Wabern-Effekt auch nach Scream
-        let wobbleX = sin(p.wobblePhase) * p.wobbleAmount;
-        let wobbleY = cos(p.wobblePhase * 1.3) * p.wobbleAmount * 0.3;
+        // Rotation
+        p.rotation += p.rotationSpeed;
         
-        // Nach oben bewegen mit Wabern (direkt Position ändern)
-        p.x += p.vx * 0.3 + wobbleX * 0.15; // Langsame seitliche Drift + Wabern
-        p.y += p.vy + wobbleY * 0.1; // Nach oben + leichtes Wabern
-        
-        p.life -= 0.0015; // EXTREM langsam auflösen
-        p.vy *= 0.98; // Langsamer werden beim Aufsteigen
-        p.wobbleAmount += 0.15; // Wabern wird größer
-        p.size += 0.3; // Langsamer wachsen
+        // Gesammelte Wolke verblasst sehr langsam
+        if (p.gathered) {
+          p.life -= 0.0045; // ~3.7 Sekunden
+        } else {
+          p.life -= 0.005;
+        }
+        p.size += 0.4;
         p.alpha = p.life * 255;
         
         if (p.life <= 0) {
@@ -832,17 +871,17 @@ function drawDemon() {
   
   let demonSize = demon.size + sin(frameCount * 0.06) * 6 + bass * 25 + demon.kickPulse * 30;
   
-  // Glow - Schwarz-Weiß
+  // Glow - Heller (Grau-Weiß)
   for (let i = 5; i > 0; i--) {
-    let brightness = 60 + bass * 25 + demon.kickPulse * 50;
+    let brightness = 120 + bass * 30 + demon.kickPulse * 60; // Heller: war 60
     noStroke();
     fill(brightness, brightness, brightness, 12 + bass * 18 + demon.kickPulse * 12);
     ellipse(0, 0, demonSize + i * 45 + bass * 20 + demon.kickPulse * 25, demonSize + i * 45);
   }
   
-  // KOPF - heller grau, muskulös
-  fill(120, 120, 120);
-  stroke(80, 80, 80);
+  // KOPF - HELLER grau (180 statt 120), muskulös
+  fill(180, 180, 180);
+  stroke(140, 140, 140); // Auch Stroke heller
   strokeWeight(2 + bass * 1);
   
   // Gesicht - kantig, dämonisch
@@ -1004,16 +1043,32 @@ function drawDemon() {
       triangle(x - 3, y, x, y - toothHeight, x + 3, y);
     }
     
-    // Zeichne lila Rauch-Partikel
+    // Zeichne lila Rauch-Partikel - REALISTISCHER RAUCH
     for (let p of demon.smokeParticles) {
       push();
+      translate(p.x, p.y);
+      rotate(p.rotation);
       noStroke();
-      // Lila Farbe mit Transparenz
-      fill(180, 100, 220, p.alpha * 0.6);
-      ellipse(p.x, p.y, p.size);
-      // Äußerer Glow
-      fill(200, 150, 240, p.alpha * 0.3);
-      ellipse(p.x, p.y, p.size * 1.4);
+      
+      // Mehrere Schichten für weichen, wolkigen Rauch
+      // Kern (dunklerer lila)
+      fill(160, 80, 200, p.alpha * 0.4);
+      ellipse(0, 0, p.size * 0.6, p.size * 0.7);
+      
+      // Mittlere Schicht
+      fill(180, 100, 220, p.alpha * 0.35);
+      ellipse(p.size * 0.15, -p.size * 0.1, p.size * 0.8, p.size * 0.9);
+      ellipse(-p.size * 0.12, p.size * 0.08, p.size * 0.75, p.size * 0.85);
+      
+      // Äußere weiche Schichten (Glow)
+      fill(200, 150, 240, p.alpha * 0.2);
+      ellipse(p.size * 0.2, 0, p.size * 1.1, p.size * 1.2);
+      ellipse(-p.size * 0.15, -p.size * 0.1, p.size * 1.0, p.size * 1.15);
+      
+      // Sehr weiches Outer Glow
+      fill(220, 180, 250, p.alpha * 0.1);
+      ellipse(0, 0, p.size * 1.5, p.size * 1.6);
+      
       pop();
     }
     
@@ -1152,9 +1207,9 @@ function drawWendigo() {
   
   let wendigoSize = wendigo.size + sin(frameCount * 0.05) * 6 + bass * 32 + wendigo.kickPulse * 30;
   
-  // Eisige Aura - kalter Nebel
+  // Eisige Aura - HELLER (kalter Nebel)
   for (let i = 7; i > 0; i--) {
-    let brightness = 55 + bass * 35 + wendigo.kickPulse * 50;
+    let brightness = 110 + bass * 40 + wendigo.kickPulse * 60; // Heller: war 55
     noStroke();
     fill(brightness, brightness, brightness + 5, 5 + bass * 12 + wendigo.kickPulse * 10);
     ellipse(0, 0, 
@@ -1165,9 +1220,9 @@ function drawWendigo() {
   // === MASSIVE GEWEIH ===
   drawWendigoAntlers(wendigoSize);
   
-  // === WENDIGO SCHÄDEL - Hirsch/Elch-artig ===
-  fill(110, 110, 110); // Heller
-  stroke(75, 75, 75); // Heller
+  // === WENDIGO SCHÄDEL - HELLER Hirsch/Elch-artig ===
+  fill(170, 170, 170); // Noch heller: war 110
+  stroke(130, 130, 130); // Auch Stroke heller: war 75
   strokeWeight(2.5 + bass * 1);
   
   // Langgestreckter Schädel (Hirsch-Form)

@@ -28,18 +28,14 @@ let historyLength = 60; // 1 Sekunde bei 60fps
 
 // Tracking für maximale Intensität pro Song
 let maxIntensityThisSong = 0;
-let songIntensityStats = [];
-let isAnalyzingSongs = false;
-let analysisComplete = false;
-let analysisProgress = 0;
 
 // Intensitäts-Schwellwerte für verschiedene Zustände
-// 0: FLOATING (10-40%), 1: DREAM (40-65%), 2: FALLING (65-80%), 3: NIGHTMARE (80%+)
+// 0: FLOATING (10-40%), 1: DREAM (40-60%), 2: FALLING (60-70%), 3: NIGHTMARE (70%+)
 let wordThresholds = [
   { min: 0.10, max: 0.40, word: 0 },  // FLOATING
-  { min: 0.40, max: 0.65, word: 1 },  // DREAM
-  { min: 0.65, max: 0.80, word: 2 },  // FALLING
-  { min: 0.80, max: 1.00, word: 3 }   // NIGHTMARE
+  { min: 0.40, max: 0.60, word: 1 },  // DREAM
+  { min: 0.60, max: 0.70, word: 2 },  // FALLING
+  { min: 0.70, max: 1.00, word: 3 }   // NIGHTMARE
 ];
 
 // Raster
@@ -81,110 +77,13 @@ function setup() {
   createBarGrid();
   createClouds();
   
-  // Starte Song-Analyse
-  console.log("Starting song analysis...");
-  analyzeSongs();
-}
-
-function analyzeSongs() {
-  isAnalyzingSongs = true;
-  let currentAnalysisIndex = 0;
-  let samplesPerSong = 100; // Anzahl der Samples pro Song
-  let sampleInterval = 0; // Wird pro Song berechnet
-  let currentSample = 0;
-  let tempMaxIntensity = 0;
-  
-  function analyzeNextSample() {
-    if (currentAnalysisIndex >= sounds.length) {
-      // Analyse komplett
-      isAnalyzingSongs = false;
-      analysisComplete = true;
-      console.log("\n=== SONG ANALYSIS COMPLETE ===");
-      console.log("Results:");
-      for (let stat of songIntensityStats) {
-        console.log(`Song ${stat.songIndex + 1}: Max Intensity = ${stat.maxPercentage}%`);
-      }
-      
-      // Finde globale maximale Intensität
-      let globalMax = Math.max(...songIntensityStats.map(s => s.maxIntensity));
-      console.log(`\nGlobal Maximum: ${(globalMax * 100).toFixed(1)}%`);
-      if (globalMax < 0.80) {
-        console.log(`⚠️ WARNING: No song reaches 80% (NIGHTMARE threshold)`);
-        console.log(`Highest song only reaches ${(globalMax * 100).toFixed(1)}%`);
-      }
-      console.log("==============================\n");
-      
-      // Starte normales Playback
-      playRandomSound();
-      return;
-    }
-    
-    let currentSound = sounds[currentAnalysisIndex];
-    
-    if (currentSample === 0) {
-      // Starte neuen Song
-      console.log(`Analyzing Song ${currentAnalysisIndex + 1}/${sounds.length}...`);
-      tempMaxIntensity = 0;
-      sampleInterval = currentSound.duration() / samplesPerSong;
-      
-      fft.setInput(currentSound);
-      amplitude.setInput(currentSound);
-      currentSound.play();
-    }
-    
-    // Analysiere aktuellen Zeitpunkt
-    let spectrum = fft.analyze();
-    let level = amplitude.getLevel();
-    let bass = fft.getEnergy("bass") / 255;
-    let lowMid = fft.getEnergy("lowMid") / 255;
-    let mid = fft.getEnergy("mid") / 255;
-    let treble = fft.getEnergy("treble") / 255;
-    
-    let musicIntensity = (level * 0.4) + (bass * 0.3) + (mid * 0.2) + (treble * 0.1);
-    
-    if (musicIntensity > tempMaxIntensity) {
-      tempMaxIntensity = musicIntensity;
-    }
-    
-    currentSample++;
-    analysisProgress = ((currentAnalysisIndex + (currentSample / samplesPerSong)) / sounds.length) * 100;
-    
-    if (currentSample >= samplesPerSong) {
-      // Song-Analyse abgeschlossen
-      currentSound.stop();
-      songIntensityStats.push({
-        songIndex: currentAnalysisIndex,
-        maxIntensity: tempMaxIntensity,
-        maxPercentage: (tempMaxIntensity * 100).toFixed(1)
-      });
-      console.log(`✓ Song ${currentAnalysisIndex + 1} analyzed - Max: ${(tempMaxIntensity * 100).toFixed(1)}%`);
-      
-      currentAnalysisIndex++;
-      currentSample = 0;
-      
-      // Kleine Pause zwischen Songs
-      setTimeout(analyzeNextSample, 100);
-    } else {
-      // Nächstes Sample
-      setTimeout(analyzeNextSample, sampleInterval * 1000);
-    }
-  }
-  
-  analyzeNextSample();
+  // Starte mit zufälligem Song
+  playRandomSound();
 }
 
 function playRandomSound() {
-  // Stoppe ALLE Sounds komplett und speichere Stats vom vorherigen Song
+  // Stoppe ALLE Sounds komplett
   for (let i = 0; i < sounds.length; i++) {
-    if (i === currentSoundIndex && maxIntensityThisSong > 0) {
-      // Speichere Stats für den Song, der gerade zu Ende geht
-      songIntensityStats.push({
-        songIndex: i,
-        maxIntensity: maxIntensityThisSong,
-        maxPercentage: (maxIntensityThisSong * 100).toFixed(1)
-      });
-      console.log(`Song ${i + 1} finished - Max Intensity: ${(maxIntensityThisSong * 100).toFixed(1)}%`);
-    }
     sounds[i].stop();
     // Entferne alle Event Listener
     sounds[i].onended(() => {});
@@ -202,8 +101,6 @@ function playRandomSound() {
   // Setze FFT und Amplitude Input
   fft.setInput(currentSound);
   amplitude.setInput(currentSound);
-  
-  console.log(`Now playing: Song ${currentSoundIndex + 1}/${sounds.length}`);
   
   // Spiele Sound ab
   currentSound.play();
@@ -313,15 +210,13 @@ function createClouds() {
 }
 
 function mousePressed() {
-  // Bei Klick: Neuen zufälligen Song starten (nur wenn Analyse fertig)
-  if (analysisComplete && !isAnalyzingSongs) {
-    playRandomSound();
-  }
+  // Bei Klick: Neuen zufälligen Song starten
+  playRandomSound();
 }
 
 function keyPressed() {
-  // Leertaste oder N: Neuen zufälligen Song (nur wenn Analyse fertig)
-  if ((key === ' ' || key === 'n' || key === 'N') && analysisComplete && !isAnalyzingSongs) {
+  // Leertaste oder N: Neuen zufälligen Song
+  if (key === ' ' || key === 'n' || key === 'N') {
     playRandomSound();
   }
 }
@@ -329,35 +224,6 @@ function keyPressed() {
 function draw() {
   // Schwarzer Hintergrund
   background(0);
-  
-  // Zeige Analyse-Fortschritt
-  if (isAnalyzingSongs) {
-    fill(255);
-    textAlign(CENTER, CENTER);
-    textSize(32);
-    text("Analyzing Songs...", width / 2, height / 2 - 30);
-    textSize(24);
-    text(`${analysisProgress.toFixed(0)}%`, width / 2, height / 2 + 20);
-    
-    // Fortschrittsbalken
-    noFill();
-    stroke(255);
-    strokeWeight(2);
-    rect(width / 2 - 200, height / 2 + 60, 400, 20);
-    fill(100, 200, 255);
-    noStroke();
-    rect(width / 2 - 200, height / 2 + 60, 400 * (analysisProgress / 100), 20);
-    
-    return; // Nichts anderes zeichnen während Analyse
-  }
-  
-  if (!analysisComplete) {
-    fill(255);
-    textAlign(CENTER, CENTER);
-    textSize(24);
-    text("Click to start analysis", width / 2, height / 2);
-    return;
-  }
   
   // Prüfe ob aktueller Sound zu Ende ist, dann nächsten spielen
   if (currentSoundIndex >= 0 && sounds[currentSoundIndex] && !sounds[currentSoundIndex].isPlaying()) {
@@ -437,8 +303,8 @@ function draw() {
         break;
       }
     }
-    // Falls über 80% → NIGHTMARE
-    if (avgIntensity >= 0.80) targetWord = 3; // NIGHTMARE
+    // Falls über 70% → NIGHTMARE
+    if (avgIntensity >= 0.70) targetWord = 3; // NIGHTMARE
     
     // Wechsel nur wenn genug Zeit vergangen und Zustand sich ändert
     if (!isTransitioning && 
@@ -482,20 +348,16 @@ function draw() {
     drawNightmareBars(lowFreq, isBeat, easeProgress);
   }
   
-  // Debug Info - EINGESCHALTET für Debugging
-  let avgIntensity = energyHistory.length > 0 
-    ? energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length 
-    : 0;
-  
-  fill(255);
-  textAlign(LEFT, TOP);
-  textSize(16);
-  let playingStatus = currentSoundIndex >= 0 && sounds[currentSoundIndex] && sounds[currentSoundIndex].isPlaying() ? "PLAYING" : "STOPPED";
-  text(`State: ${words[currentWord]} | Intensity: ${(avgIntensity * 100).toFixed(0)}% | MAX: ${(maxIntensityThisSong * 100).toFixed(1)}% | ${playingStatus} | Click or [Space] for random song`, 10, 10);
-//   let playingStatus = (currentSoundIndex >= 0 && sounds[currentSoundIndex].isPlaying()) ? 'Playing' : 'Stopped';
-//   let currentSongName = currentSoundIndex >= 0 ? songNames[currentSoundIndex] : 'None';
-//   text(`${textToDisplay} | Song: ${currentSongName} (${currentSoundIndex + 1}/${sounds.length}) | Intensity: ${(avgIntensity * 100).toFixed(0)}% | Beat: ${isBeat}`, 10, 10);
-//   text(`FLOATING: 20-30% | DREAM: 30-45% | FALLING: 45-60% | NIGHTMARE: 60%+ | ${playingStatus} | Click or [Space] for random song`, 10, 25);
+  // Debug Info - AUSKOMMENTIERT
+//   let avgIntensity = energyHistory.length > 0 
+//     ? energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length 
+//     : 0;
+//   
+//   fill(255);
+//   textAlign(LEFT, TOP);
+//   textSize(16);
+//   let playingStatus = currentSoundIndex >= 0 && sounds[currentSoundIndex] && sounds[currentSoundIndex].isPlaying() ? "PLAYING" : "STOPPED";
+//   text(`State: ${words[currentWord]} | Intensity: ${(avgIntensity * 100).toFixed(0)}% | MAX: ${(maxIntensityThisSong * 100).toFixed(1)}% | ${playingStatus} | Click or [Space] for random song`, 10, 10);
 }
 
 function drawFloatingBars(lowFreq, isBeat, transitionEase) {
