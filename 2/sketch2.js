@@ -3,7 +3,7 @@ let sound;
 let isStarted = false;
 
 // Video/Visual params
-let baseSpacing = 8;
+let baseSpacing = 6;
 let spacing = 8;
 let minB = 20;
 let maxB = 255;
@@ -52,7 +52,7 @@ let offsetY = 0;
 console.log("sketch2 running");
 function preload() {
   // put your video in the project's folder and update the filename
-  video = createVideo("clown.mp4");
+  video = createVideo("wald_reverse.mp4");
   sound = loadSound("test.mp3");
   console.log("video loaded");
 }
