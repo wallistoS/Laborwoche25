@@ -101,7 +101,7 @@ let clippyRotation = 0; // Beat-Animation Rotation
 let clippyMessageIndex = 0; // Welche Sprechblase angezeigt wird (0 = erste, 1 = zweite)
 
 function preload() {
-  sound = loadSound("./assets/99luftballons.mp3");
+  sound = loadSound("./assets/Gonzi_BASSKILLER.mp3");
   clippySvg = loadImage("./assets/microsoft-clippy.svg");
 }
 
@@ -980,7 +980,7 @@ function drawCrashScreen() {
   fill(255, 100, 100);
   textAlign(CENTER, CENTER);
   textSize(64);
-  text("Dreams.exe failed loading", width / 2, height / 2 - 30);
+  text("Rechenzentrum has fallen again", width / 2, height / 2 - 30);
 
   fill(255);
   textSize(40);

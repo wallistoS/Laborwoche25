@@ -20,12 +20,20 @@ let low_fft, mid_fft, high_fft;
 let band_cnt = 512;
 
 const levelMultiplicator = 1000;
-let minClamp = 75;
-let maxClamp = 100;
-let thresholdKickFraction = 0.5;
+let minClamp = 70;  // Reduziert von 75 auf 70 für mehr Sensitivität
+let maxClamp = 95;  // Reduziert von 100 auf 95
+let thresholdKickFraction = 0.45; // Reduziert von 0.5 auf 0.45 für frühere Trigger
 
 const debugFFT = false;
 const debugKick = false;
+
+// Variablen für verbesserte Beat Detection
+let ampLevel, ampLevelClamp;
+let ampVolhistory = [];
+let ampEnergyArray = [];
+let thresholdKick;
+let kickDetected = false;
+let maxAmpFreq = 0;
 
 /************************************/
 /* Variablen für Dino-Game          */
@@ -89,7 +97,6 @@ let kickContrast = 0;
 let bassHistory = [];
 let lastBass = 0;
 let bassDropDetected = false;
-let bassDropThreshold = 35; // Schwellwert für Bass-Anstieg
 
 // Party-Modus (ab 3. Hindernis)
 let partyMode = false;
@@ -121,7 +128,7 @@ let hi_freq = 0;
 let treble_freq = 0;
 
 function preload() {
-  sound = loadSound("./assets/LanaTechno.mp3");
+  sound = loadSound("./assets/Gonzi_BASSKILLER.mp3");
   dinoLeftImg = loadImage("./assets/Chrome_T-Rex_Left_Run.webp");
   dinoRightImg = loadImage("./assets/Chrome_T-Rex_Right_Run.webp");
   cactusImg = loadImage("./assets/1_Cactus_Chrome_Dino.webp");
@@ -138,9 +145,11 @@ function setup() {
 
   amplitude = new p5.Amplitude();
 
-  low_fft = new p5.FFT(0.9, band_cnt);
-  mid_fft = new p5.FFT(0.75, band_cnt);
-  high_fft = new p5.FFT(0.5, band_cnt);
+  // Smoothing reduziert für bessere Beat-Detection
+  // Weniger Smoothing = schnellere Reaktion auf Bass/Kicks
+  low_fft = new p5.FFT(0.7, band_cnt);  // Reduziert von 0.9 auf 0.7
+  mid_fft = new p5.FFT(0.6, band_cnt);   // Reduziert von 0.75 auf 0.6
+  high_fft = new p5.FFT(0.4, band_cnt);  // Reduziert von 0.5 auf 0.4
   low_fft.setInput(sound);
   mid_fft.setInput(sound);
   high_fft.setInput(sound);
@@ -176,7 +185,14 @@ function draw() {
   if (partyMode) {
     background(bgColor[0], bgColor[1], bgColor[2]);
   } else {
-    background(0);
+    // Auch ohne Party-Modus: bei Kick (ADD Ring) kurz Farbe zeigen
+    if (kickContrast > 1) {
+      // Farb-Intensität abhängig von kickContrast
+      let intensity = map(kickContrast, 0, 255, 0, 60);
+      background(intensity, intensity * 0.3, intensity * 0.5); // Bläulicher Ton
+    } else {
+      background(0);
+    }
   }
   drawGrain();
 
@@ -882,7 +898,7 @@ function triggerGameOver() {
   gameOver = true;
   gameOverTime = millis();
   gameOverY = -100;
-  console.log("💀 GAME OVER! 💀");
+  console.log("GAME OVER! DREAM ENDED");
 }
 
 function drawGameOver() {
@@ -899,7 +915,7 @@ function drawGameOver() {
   textSize(64);
   fill(gameOverColor[0], gameOverColor[1], gameOverColor[2]);
   textAlign(CENTER, CENTER);
-  text("GAME OVER", width/2, gameOverY);
+  text("GAME OVER! DREAM ENDED!", width/2, gameOverY);
   pop();
   
   // Nach 3 Sekunden: Neustart
@@ -955,17 +971,11 @@ function updateMusicReactiveValues() {
 /*******************************/
 /* Code für die Kick Detection */
 /*******************************/
-let ampLevel, ampLevelClamp;
-let ampVolhistory = [];
-let ampEnergyArray = [];
-let thresholdKick;
-let kickDetected = false;
-let maxAmpFreq = 0;
-
 function beatDetection() {
   ampLevel = amplitude.getLevel() * levelMultiplicator;
   ampEnergyArray.push(ampLevel);
-  if (ampEnergyArray.length > 180) {
+  // Reduziert von 180 auf 120 Frames (4 Sekunden bei 30fps) für schnellere Reaktion
+  if (ampEnergyArray.length > 120) {
     ampEnergyArray.shift();
   }
   let maxAmp = max(ampEnergyArray);
@@ -1003,8 +1013,9 @@ function updateThresholdsKick() {
 /* Code für Bass-Drop Detection */
 /*******************************/
 function bassDropDetection() {
-  // Verwende sub_freq (tiefste Frequenzen) für Bass-Drop-Erkennung
-  let currentBass = sub_freq;
+  // Kombiniere sub_freq und low_freq für umfassendere Bass-Erkennung
+  // sub_freq = tiefste Bass-Frequenzen, low_freq = lowMid Frequenzen
+  let currentBass = (sub_freq + low_freq * 0.7) / 1.7; // Gewichteter Durchschnitt
   
   // Berechne die Differenz zum vorherigen Frame (Delta)
   let bassDelta = currentBass - lastBass;
@@ -1016,12 +1027,12 @@ function bassDropDetection() {
   }
   
   // Erkenne starke Anstiege im Bass (Drop)
-  // Nur wenn Bass aktuell auch hoch genug ist (mindestens 100)
-  if (bassDelta > bassDropThreshold && currentBass > 100 && !bassDropDetected) {
+  // Sensitivität erhöht: Threshold reduziert auf 20, Min-Bass auf 70
+  if (bassDelta > 20 && currentBass > 70 && !bassDropDetected) {
     bassDropDetected = true;
     lastBass = currentBass;
     return true;
-  } else if (bassDelta < bassDropThreshold * 0.3) {
+  } else if (bassDelta < 8) {  // Schnellerer Reset bei kleinem Delta
     // Reset detection wenn Delta wieder klein wird
     bassDropDetected = false;
   }
