@@ -279,114 +279,114 @@ function analyzeAudio() {
         demon.screamMode = false;
         // NICHT mehr alle Partikel sofort löschen - sie lösen sich langsam auf
       } else {
-        // Erstelle lila Rauch-Partikel während Scream - WEITER UNTEN AM MUND
-        if (frameCount % 3 === 0) { // Weniger Partikel für realistischeren Look
-          demon.smokeParticles.push({
-            x: random(-25, 25), // Breiter gestreut
-            y: demon.size * 0.5 + random(-10, 20), // WEITER UNTEN (war random(-20, 20))
-            vx: random(-1.5, 1.5), // Seitliche Drift beim Absacken
-            vy: 0,
-            size: random(15, 35), // Kleinere Startgröße
-            alpha: 255,
-            life: 1.0,
-            targetX: random(-60, 60), // Zielposition für Wolken-Sammlung
-            targetY: demon.size * 0.7, // Sammelt sich noch weiter unten
-            gathered: false, // Ob sich Partikel schon gesammelt hat
-            rotation: random(TWO_PI), // Rotation für organischen Look
-            rotationSpeed: random(-0.02, 0.02)
-          });
+        // Erstelle lila Rauch-Partikel während Scream - wie Shisha-Rauch
+        // Weniger oft, aber mit unterschiedlichen Start-Ages für gestaffeltes Verblassen
+        if (frameCount % 10 === 0) { // Weniger dicht (war 8)
+          // Erstelle 2 Partikel mit unterschiedlichem "Start-Alter" (war 3)
+          for (let burst = 0; burst < 2; burst++) {
+            demon.smokeParticles.push({
+              x: random(-15, 15), // Enger am Mund
+              y: demon.size * 0.5 + random(-5, 10), 
+              vx: random(-0.8, 0.8), // Langsame initiale Drift
+              vy: 0.15, // Sehr langsam nach unten (war 0.3)
+              size: random(25, 50), // Größere, dichtere Partikel
+              alpha: 255,
+              life: 1.0,
+              targetX: random(-80, 80), // Breitere Streuung beim Verziehen
+              targetY: demon.size * 0.68, // Sammelt sich höher (war 0.75)
+              gathered: false,
+              rotation: random(TWO_PI),
+              rotationSpeed: random(-0.015, 0.015), // Langsamere Rotation
+              fadeDelay: random(60, 180), // 1-3 Sekunden bevor verziehen
+              disperseAngle: random(TWO_PI),
+              disperseSpeed: random(0.2, 0.5), // Langsamer verziehen
+              age: burst * 15, // Unterschiedliches Start-Alter: 0, 15, 30 Frames
+              turbulence: random(0.5, 1.5), // Individuelle Turbulenzen
+              postScreamAge: 0 // Wie lange seit Scream-Ende
+            });
+          }
         }
       }
-      
-      // Update smoke particles (auch nach Scream-Ende)
+    }
+    
+    // Update smoke particles (IMMER - auch nach Scream-Ende!)
+    if (demon.smokeParticles.length > 0) {
       for (let i = demon.smokeParticles.length - 1; i >= 0; i--) {
         let p = demon.smokeParticles[i];
         
-        // PHASE 1: Partikel sacken nach unten ab
+        // Falls alter Partikel ohne postScreamAge - initialisieren
+        if (p.postScreamAge === undefined) {
+          p.postScreamAge = 0;
+        }
+        
+        // SHISHA-RAUCH PHYSIK
+        p.age++;
+        
+        // PHASE 1: Rauch sackt langsam nach unten ab
         if (!p.gathered) {
-          // Erst nach unten fallen lassen
-          p.x += p.vx; // Seitliche Drift
-          p.y += 2.5; // Nach unten sacken
-          p.vx *= 0.95; // Seitliche Bewegung abbremsen
+          // Shisha-Rauch sackt ab mit Turbulenzen - SEHR LANGSAM
+          p.x += p.vx + sin(p.age * 0.1 + p.turbulence) * 0.5; // Turbulente seitliche Bewegung
+          p.y += p.vy + (p.age * 0.003); // Sackt sehr langsam nach unten (war 0.008)
+          p.vx *= 0.995; // Drift verlangsamt sich sehr langsam (war 0.99)
+          p.vy += 0.008; // Absacken nimmt sehr langsam zu (war 0.015)
           
-          // Wenn weit genug unten: Beginne zur Wolke zu sammeln
-          if (p.y > demon.size * 0.65) { // Noch weiter unten
-            // Bewege zur Zielposition (Wolken-Sammlung)
-            p.x = lerp(p.x, p.targetX, 0.04); // Sammeln
-            p.y = lerp(p.y, p.targetY, 0.04);
+          // GRENZE: Rauch kann nicht tiefer als demon.size * 0.8 absacken
+          let maxY = demon.size * 0.8;
+          if (p.y > maxY) {
+            p.y = maxY; // Stoppe bei Grenze
+            p.vy = 0; // Keine weitere Abwärtsbewegung
+          }
+          
+          // Nach kurzer Zeit: Beginne zu sammeln/verweilen
+          if (p.age > 40) { // Nach ~0.67 Sekunden
+            // Bewege zur Zielposition (Schwebende Wolke)
+            p.x = lerp(p.x, p.targetX, 0.02); // Langsames Sammeln
+            p.y = lerp(p.y, p.targetY, 0.02);
             
-            // Prüfe ob Ziel erreicht (Wolke gesammelt)
+            // Prüfe ob Ziel erreicht
             let distToTarget = dist(p.x, p.y, p.targetX, p.targetY);
-            if (distToTarget < 15) {
-              p.gathered = true; // Wolke ist gesammelt
+            if (distToTarget < 20) {
+              p.gathered = true;
             }
           }
         } else {
-          // PHASE 2: Wolke steht still und verblasst SEHR langsam (3-4 Sekunden)
-          // Nur minimale Bewegung (leichtes Wabern)
-          p.x += sin(frameCount * 0.03 + p.targetX) * 0.3;
-          p.y += cos(frameCount * 0.025 + p.targetY) * 0.2;
+          // PHASE 2: Wolke liegt mit Turbulenzen
+          if (p.fadeDelay > 0) {
+            p.fadeDelay--;
+            // Noch nicht verziehen - liegt mit organischen Bewegungen
+            p.x += sin(p.age * 0.05 + p.turbulence) * 0.4;
+            p.y += cos(p.age * 0.04 + p.turbulence) * 0.3 + 0.05; // Sackt minimal weiter
+          } else {
+            // PHASE 3: Verzieht sich langsam wie Shisha-Rauch
+            p.x += cos(p.disperseAngle) * p.disperseSpeed + sin(p.age * 0.08) * 0.3;
+            p.y += sin(p.disperseAngle) * p.disperseSpeed * 0.3 + 0.1; // Sackt weiter ab
+            p.disperseSpeed *= 1.01; // Langsame Beschleunigung
+          }
         }
         
         // Rotation für organischen Look
         p.rotation += p.rotationSpeed;
         
-        // Nach Scream-Ende: Rauch verblasst langsam
-        if (!demon.screamMode) {
+        // Shisha-Rauch Verblassen - basierend auf INDIVIDUELLEM Alter
+        // Jeder Partikel beginnt nach 180 Frames (3 Sek) zu verblassen
+        if (p.age > 180) {
+          // Partikel ist alt genug - beginnt zu verblassen
           if (p.gathered) {
-            p.life -= 0.0045; // Gesammelte Wolke verblasst SEHR langsam (~3.7 Sekunden bei 60fps)
-          } else {
-            p.life -= 0.005; // Fallende Partikel etwas schneller
-          }
-        } else {
-          p.life -= 0.002; // Während Scream noch langsamer
-        }
-        
-        p.size += 0.4; // Wächst etwas mehr für Rauch-Effekt
-        p.alpha = p.life * 255;
-        
-        if (p.life <= 0) {
-          demon.smokeParticles.splice(i, 1);
-        }
-      }
-    } else if (demon.smokeParticles.length > 0) {
-      // Auch nach Scream-Ende weiter Partikel updaten (Wolke verblasst)
-      for (let i = demon.smokeParticles.length - 1; i >= 0; i--) {
-        let p = demon.smokeParticles[i];
-        
-        // Absacken und zur Wolke sammeln
-        if (!p.gathered) {
-          // Erst nach unten fallen lassen
-          p.x += p.vx;
-          p.y += 2.5; // Nach unten sacken
-          p.vx *= 0.95;
-          
-          // Wenn weit genug unten: Beginne zu sammeln
-          if (p.y > demon.size * 0.65) {
-            p.x = lerp(p.x, p.targetX, 0.04);
-            p.y = lerp(p.y, p.targetY, 0.04);
-            
-            let distToTarget = dist(p.x, p.y, p.targetX, p.targetY);
-            if (distToTarget < 15) {
-              p.gathered = true;
+            if (p.fadeDelay <= 0) {
+              p.life -= 0.0045; // Verziehende Partikel ~3.7 Sekunden
+            } else {
+              p.life -= 0.0033; // Liegende Wolke ~5 Sekunden
             }
+          } else {
+            p.life -= 0.004; // Absackender Rauch ~4.2 Sekunden
           }
-        } else {
-          // Leichtes Wabern während Verblassen
-          p.x += sin(frameCount * 0.03 + p.targetX) * 0.3;
-          p.y += cos(frameCount * 0.025 + p.targetY) * 0.2;
         }
+        // Junge Partikel (age < 180) verblassen NICHT
         
-        // Rotation
-        p.rotation += p.rotationSpeed;
-        
-        // Gesammelte Wolke verblasst sehr langsam
-        if (p.gathered) {
-          p.life -= 0.0045; // ~3.7 Sekunden
-        } else {
-          p.life -= 0.005;
+        // Größe wächst langsam, aber nur bis max 70
+        if (p.size < 70) {
+          p.size += 0.2; // Sehr langsam wachsen (war 0.3)
         }
-        p.size += 0.4;
         p.alpha = p.life * 255;
         
         if (p.life <= 0) {
@@ -1043,31 +1043,51 @@ function drawDemon() {
       triangle(x - 3, y, x, y - toothHeight, x + 3, y);
     }
     
-    // Zeichne lila Rauch-Partikel - REALISTISCHER RAUCH
+    // Zeichne lila Rauch-Partikel - SHISHA-RAUCH STIL
     for (let p of demon.smokeParticles) {
       push();
       translate(p.x, p.y);
       rotate(p.rotation);
       noStroke();
       
-      // Mehrere Schichten für weichen, wolkigen Rauch
-      // Kern (dunklerer lila)
-      fill(160, 80, 200, p.alpha * 0.4);
-      ellipse(0, 0, p.size * 0.6, p.size * 0.7);
+      // Shisha-Rauch: Dichter am Anfang, durchsichtiger beim Verziehen
+      let densityFactor = 1.0;
+      if (p.gathered && p.fadeDelay <= 0) {
+        densityFactor = 0.5; // Verziehender Rauch durchsichtiger
+      } else if (!p.gathered && p.age < 20) {
+        densityFactor = 1.3; // Frischer Rauch dichter
+      }
       
-      // Mittlere Schicht
-      fill(180, 100, 220, p.alpha * 0.35);
-      ellipse(p.size * 0.15, -p.size * 0.1, p.size * 0.8, p.size * 0.9);
-      ellipse(-p.size * 0.12, p.size * 0.08, p.size * 0.75, p.size * 0.85);
+      // Mehrere Schichten für dichten, voluminösen Shisha-Rauch
+      // Innerer Kern - sehr dicht
+      fill(140, 60, 180, p.alpha * 0.4 * densityFactor);
+      ellipse(0, 0, p.size * 0.5, p.size * 0.6);
+      ellipse(p.size * 0.08, -p.size * 0.05, p.size * 0.45, p.size * 0.55);
       
-      // Äußere weiche Schichten (Glow)
-      fill(200, 150, 240, p.alpha * 0.2);
-      ellipse(p.size * 0.2, 0, p.size * 1.1, p.size * 1.2);
-      ellipse(-p.size * 0.15, -p.size * 0.1, p.size * 1.0, p.size * 1.15);
+      // Mittlere dichte Schichten - überlappend für Volumen
+      fill(160, 80, 200, p.alpha * 0.35 * densityFactor);
+      ellipse(p.size * 0.12, -p.size * 0.08, p.size * 0.7, p.size * 0.8);
+      ellipse(-p.size * 0.1, p.size * 0.06, p.size * 0.65, p.size * 0.75);
+      ellipse(p.size * 0.05, p.size * 0.1, p.size * 0.6, p.size * 0.7);
+      ellipse(-p.size * 0.08, -p.size * 0.04, p.size * 0.68, p.size * 0.78);
       
-      // Sehr weiches Outer Glow
-      fill(220, 180, 250, p.alpha * 0.1);
-      ellipse(0, 0, p.size * 1.5, p.size * 1.6);
+      // Äußere Schichten - weicher
+      fill(180, 100, 220, p.alpha * 0.25 * densityFactor);
+      ellipse(p.size * 0.18, 0, p.size * 0.95, p.size * 1.05);
+      ellipse(-p.size * 0.14, -p.size * 0.08, p.size * 0.9, p.size * 1.0);
+      ellipse(p.size * 0.06, p.size * 0.14, p.size * 0.85, p.size * 0.95);
+      ellipse(-p.size * 0.1, p.size * 0.1, p.size * 0.92, p.size * 1.02);
+      
+      // Glow-Schichten - sanfter Übergang
+      fill(200, 150, 240, p.alpha * 0.15 * densityFactor);
+      ellipse(p.size * 0.15, -p.size * 0.05, p.size * 1.2, p.size * 1.3);
+      ellipse(-p.size * 0.12, p.size * 0.08, p.size * 1.15, p.size * 1.25);
+      ellipse(p.size * 0.08, p.size * 0.12, p.size * 1.1, p.size * 1.2);
+      
+      // Outer Glow - sehr weich und breit
+      fill(220, 180, 250, p.alpha * 0.08 * densityFactor);
+      ellipse(0, 0, p.size * 1.6, p.size * 1.7);
+      ellipse(-p.size * 0.08, p.size * 0.08, p.size * 1.5, p.size * 1.6);
       
       pop();
     }
@@ -1116,6 +1136,55 @@ function drawDemon() {
       let y = demonSize * 0.48;
       let toothHeight = 12 + random(-2, 2) + bass * 3;
       triangle(x - 3, y, x, y - toothHeight, x + 3, y);
+    }
+    
+    // Zeichne lila Rauch-Partikel - SHISHA-RAUCH STIL
+    for (let p of demon.smokeParticles) {
+      push();
+      translate(p.x, p.y);
+      rotate(p.rotation);
+      noStroke();
+      
+      // Shisha-Rauch: Dichter am Anfang, durchsichtiger beim Verziehen
+      let densityFactor = 1.0;
+      if (p.gathered && p.fadeDelay <= 0) {
+        densityFactor = 0.5; // Verziehender Rauch durchsichtiger
+      } else if (!p.gathered && p.age < 20) {
+        densityFactor = 1.3; // Frischer Rauch dichter
+      }
+      
+      // Mehrere Schichten für dichten, voluminösen Shisha-Rauch
+      // Innerer Kern - sehr dicht
+      fill(140, 60, 180, p.alpha * 0.4 * densityFactor);
+      ellipse(0, 0, p.size * 0.5, p.size * 0.6);
+      ellipse(p.size * 0.08, -p.size * 0.05, p.size * 0.45, p.size * 0.55);
+      
+      // Mittlere dichte Schichten - überlappend für Volumen
+      fill(160, 80, 200, p.alpha * 0.35 * densityFactor);
+      ellipse(p.size * 0.12, -p.size * 0.08, p.size * 0.7, p.size * 0.8);
+      ellipse(-p.size * 0.1, p.size * 0.06, p.size * 0.65, p.size * 0.75);
+      ellipse(p.size * 0.05, p.size * 0.1, p.size * 0.6, p.size * 0.7);
+      ellipse(-p.size * 0.08, -p.size * 0.04, p.size * 0.68, p.size * 0.78);
+      
+      // Äußere Schichten - weicher
+      fill(180, 100, 220, p.alpha * 0.25 * densityFactor);
+      ellipse(p.size * 0.18, 0, p.size * 0.95, p.size * 1.05);
+      ellipse(-p.size * 0.14, -p.size * 0.08, p.size * 0.9, p.size * 1.0);
+      ellipse(p.size * 0.06, p.size * 0.14, p.size * 0.85, p.size * 0.95);
+      ellipse(-p.size * 0.1, p.size * 0.1, p.size * 0.92, p.size * 1.02);
+      
+      // Glow-Schichten - sanfter Übergang
+      fill(200, 150, 240, p.alpha * 0.15 * densityFactor);
+      ellipse(p.size * 0.15, -p.size * 0.05, p.size * 1.2, p.size * 1.3);
+      ellipse(-p.size * 0.12, p.size * 0.08, p.size * 1.15, p.size * 1.25);
+      ellipse(p.size * 0.08, p.size * 0.12, p.size * 1.1, p.size * 1.2);
+      
+      // Outer Glow - sehr weich und breit
+      fill(220, 180, 250, p.alpha * 0.08 * densityFactor);
+      ellipse(0, 0, p.size * 1.6, p.size * 1.7);
+      ellipse(-p.size * 0.08, p.size * 0.08, p.size * 1.5, p.size * 1.6);
+      
+      pop();
     }
   }
   
